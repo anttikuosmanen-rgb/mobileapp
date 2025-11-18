@@ -1,0 +1,3 @@
+// Android subproject settings
+// This is a standalone Gradle project for building the Android APK
+rootProject.name = 'MultiPlatformGUI-Android'

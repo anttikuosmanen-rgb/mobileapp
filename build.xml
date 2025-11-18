@@ -1,0 +1,387 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project name="MultiPlatformGUI" default="build" basedir=".">
+    <description>Multi-Platform GUI Application - Ant Build with Cross-Compilation Support</description>
+
+    <!-- Properties -->
+    <property name="src.dir" value="src"/>
+    <property name="include.dir" value="include"/>
+    <property name="build.dir" value="build/ant"/>
+    <property name="resources.dir" value="resources"/>
+    <property name="version" value="1.0.0"/>
+
+    <!-- Load toolchain properties -->
+    <property file="toolchain.properties"/>
+
+    <!-- BUILD_PLATFORM: Detect where we're building (host machine) -->
+    <condition property="BUILD_PLATFORM" value="macOS">
+        <os family="mac"/>
+    </condition>
+    <condition property="BUILD_PLATFORM" value="Windows">
+        <os family="windows"/>
+    </condition>
+    <condition property="BUILD_PLATFORM" value="Linux">
+        <os family="unix"/>
+    </condition>
+
+    <!-- Platform detection for BUILD_PLATFORM -->
+    <condition property="isBuildMac">
+        <os family="mac"/>
+    </condition>
+    <condition property="isBuildWindows">
+        <os family="windows"/>
+    </condition>
+    <condition property="isBuildLinux">
+        <os family="unix"/>
+    </condition>
+
+    <!-- TARGET_PLATFORM: Set via -Dtarget.platform=... or defaults to BUILD_PLATFORM -->
+    <property name="target.platform" value="${BUILD_PLATFORM}"/>
+    <property name="TARGET_PLATFORM" value="${target.platform}"/>
+
+    <!-- Clean -->
+    <target name="clean" description="Clean build directory">
+        <delete dir="${build.dir}"/>
+        <echo message="Cleaned build directory"/>
+    </target>
+
+    <!-- Init -->
+    <target name="init" description="Initialize build">
+        <mkdir dir="${build.dir}"/>
+        <mkdir dir="${build.dir}/obj"/>
+        <copy todir="${build.dir}/resources">
+            <fileset dir="${resources.dir}"/>
+        </copy>
+        <echo message=""/>
+        <echo message="==================================="/>
+        <echo message="Ant Build Configuration"/>
+        <echo message="==================================="/>
+        <echo message="Project: ${ant.project.name}"/>
+        <echo message="Version: ${version}"/>
+        <echo message="Build Tool: Ant"/>
+        <echo message="BUILD_PLATFORM (host): ${BUILD_PLATFORM}"/>
+        <echo message="TARGET_PLATFORM (target): ${TARGET_PLATFORM}"/>
+        <echo message="==================================="/>
+        <echo message=""/>
+    </target>
+
+    <!--
+        macOS TARGET_PLATFORM
+    -->
+    <target name="compile-macos-target" depends="init" description="Compile for TARGET_PLATFORM=macOS">
+        <echo message="Compiling for TARGET_PLATFORM=macOS..."/>
+
+        <apply executable="clang++" dest="${build.dir}/obj" parallel="false" failonerror="true">
+            <arg value="-c"/>
+            <arg value="-std=c++11"/>
+            <arg value="-DBUILD_TOOL=&quot;Ant&quot;"/>
+            <arg value="-DPLATFORM_MACOS"/>
+            <arg value="-I${include.dir}"/>
+            <arg value="-I/opt/homebrew/include"/>
+            <arg value="-I/opt/homebrew/include/SDL2"/>
+            <arg value="-I/usr/local/include"/>
+            <arg value="-I/usr/local/include/SDL2"/>
+            <srcfile/>
+            <arg value="-o"/>
+            <targetfile/>
+            <fileset dir="${src.dir}" includes="*.cpp"/>
+            <mapper type="glob" from="*.cpp" to="*.o"/>
+        </apply>
+    </target>
+
+    <target name="link-macos-target" depends="compile-macos-target" description="Link for TARGET_PLATFORM=macOS">
+        <echo message="Linking for TARGET_PLATFORM=macOS..."/>
+        <exec executable="clang++" failonerror="true">
+            <arg value="-o"/>
+            <arg value="${build.dir}/MultiPlatformGUI"/>
+            <arg value="${build.dir}/obj/App.o"/>
+            <arg value="${build.dir}/obj/GuiManager.o"/>
+            <arg value="${build.dir}/obj/main.o"/>
+            <arg value="-L/opt/homebrew/lib"/>
+            <arg value="-L/usr/local/lib"/>
+            <arg value="-lSDL2"/>
+            <arg value="-lSDL2_image"/>
+            <arg value="-framework"/>
+            <arg value="Cocoa"/>
+            <arg value="-framework"/>
+            <arg value="IOKit"/>
+            <arg value="-framework"/>
+            <arg value="CoreVideo"/>
+        </exec>
+        <echo message="✓ Built for TARGET_PLATFORM=macOS"/>
+        <echo message="  Executable: ${build.dir}/MultiPlatformGUI"/>
+    </target>
+
+    <!--
+        iOS TARGET_PLATFORM
+    -->
+    <target name="check-ios-requirements" description="Check iOS build requirements">
+        <exec executable="bash" outputproperty="has.xcrun" failonerror="false">
+            <arg value="-c"/>
+            <arg value="command -v xcrun &amp;&amp; echo 'true' || echo 'false'"/>
+        </exec>
+        <condition property="ios.requirements.met">
+            <and>
+                <isset property="isBuildMac"/>
+                <equals arg1="${has.xcrun}" arg2="true"/>
+            </and>
+        </condition>
+        <fail unless="ios.requirements.met" message="iOS builds require BUILD_PLATFORM=macOS with Xcode installed. Run: xcode-select --install"/>
+    </target>
+
+    <target name="compile-ios-target" depends="init,check-ios-requirements" description="Compile for TARGET_PLATFORM=iOS">
+        <echo message="Compiling for TARGET_PLATFORM=iOS (BUILD_PLATFORM=${BUILD_PLATFORM})..."/>
+
+        <!-- Get iOS SDK path -->
+        <exec executable="xcrun" outputproperty="ios.sdk.path">
+            <arg value="--sdk"/>
+            <arg value="iphoneos"/>
+            <arg value="--show-sdk-path"/>
+        </exec>
+
+        <apply executable="xcrun" dest="${build.dir}/obj" parallel="false" failonerror="true">
+            <arg value="clang++"/>
+            <arg value="-c"/>
+            <arg value="-std=c++11"/>
+            <arg value="-arch"/>
+            <arg value="arm64"/>
+            <arg value="-isysroot"/>
+            <arg value="${ios.sdk.path}"/>
+            <arg value="-mios-version-min=14.0"/>
+            <arg value="-DBUILD_TOOL=&quot;Ant&quot;"/>
+            <arg value="-DPLATFORM_IOS"/>
+            <arg value="-I${include.dir}"/>
+            <srcfile/>
+            <arg value="-o"/>
+            <targetfile/>
+            <fileset dir="${src.dir}" includes="*.cpp"/>
+            <mapper type="glob" from="*.cpp" to="*.o"/>
+        </apply>
+    </target>
+
+    <target name="link-ios-target" depends="compile-ios-target" description="Link for TARGET_PLATFORM=iOS">
+        <echo message="Linking for TARGET_PLATFORM=iOS..."/>
+        <exec executable="xcrun" outputproperty="ios.sdk.path2">
+            <arg value="--sdk"/>
+            <arg value="iphoneos"/>
+            <arg value="--show-sdk-path"/>
+        </exec>
+
+        <exec executable="xcrun" failonerror="true">
+            <arg value="clang++"/>
+            <arg value="-arch"/>
+            <arg value="arm64"/>
+            <arg value="-isysroot"/>
+            <arg value="${ios.sdk.path2}"/>
+            <arg value="-o"/>
+            <arg value="${build.dir}/MultiPlatformGUI"/>
+            <arg value="${build.dir}/obj/App.o"/>
+            <arg value="${build.dir}/obj/GuiManager.o"/>
+            <arg value="${build.dir}/obj/main.o"/>
+            <arg value="-framework"/>
+            <arg value="Foundation"/>
+            <arg value="-framework"/>
+            <arg value="UIKit"/>
+            <arg value="-framework"/>
+            <arg value="CoreGraphics"/>
+        </exec>
+        <echo message="✓ Built for TARGET_PLATFORM=iOS (BUILD_PLATFORM=${BUILD_PLATFORM})"/>
+        <echo message="  Executable: ${build.dir}/MultiPlatformGUI"/>
+    </target>
+
+    <!--
+        Android TARGET_PLATFORM
+    -->
+    <target name="check-android-requirements" description="Check Android build requirements">
+        <available file="${android.ndk.dir}" type="dir" property="android.ndk.found"/>
+        <fail unless="android.ndk.found">
+            Android NDK not found at: ${android.ndk.dir}
+            Please install Android NDK from: https://developer.android.com/ndk/downloads
+            Update android.ndk.dir in toolchain.properties
+        </fail>
+    </target>
+
+    <target name="build-android-target" depends="init,check-android-requirements" description="Build for TARGET_PLATFORM=Android">
+        <echo message="Building for TARGET_PLATFORM=Android (BUILD_PLATFORM=${BUILD_PLATFORM})..."/>
+        <echo message="Using Android Gradle build system for APK..."/>
+
+        <!-- Use Gradle to build Android APK -->
+        <exec executable="gradle" dir="android" failonerror="true">
+            <arg value="assembleDebug"/>
+        </exec>
+
+        <echo message="✓ Built for TARGET_PLATFORM=Android (BUILD_PLATFORM=${BUILD_PLATFORM})"/>
+        <echo message="  APK: android/build/outputs/apk/debug/android-debug.apk"/>
+    </target>
+
+    <!--
+        Windows TARGET_PLATFORM
+    -->
+    <target name="check-windows-mingw" description="Check MinGW for Windows cross-compilation" unless="isBuildWindows">
+        <exec executable="bash" outputproperty="has.mingw" failonerror="false">
+            <arg value="-c"/>
+            <arg value="command -v ${mingw.prefix}-gcc &amp;&amp; echo 'true' || echo 'false'"/>
+        </exec>
+        <condition property="mingw.found">
+            <equals arg1="${has.mingw}" arg2="true"/>
+        </condition>
+        <fail unless="mingw.found">
+            MinGW not found for Windows cross-compilation!
+            Install with:
+              macOS: brew install mingw-w64
+              Linux: sudo apt-get install mingw-w64
+        </fail>
+    </target>
+
+    <target name="compile-windows-target-cross" depends="init,check-windows-mingw" unless="isBuildWindows" description="Cross-compile for TARGET_PLATFORM=Windows">
+        <echo message="Cross-compiling for TARGET_PLATFORM=Windows (BUILD_PLATFORM=${BUILD_PLATFORM})..."/>
+
+        <apply executable="${mingw.prefix}-g++" dest="${build.dir}/obj" parallel="false" failonerror="true">
+            <arg value="-c"/>
+            <arg value="-std=c++11"/>
+            <arg value="-DBUILD_TOOL=&quot;Ant&quot;"/>
+            <arg value="-DPLATFORM_WINDOWS"/>
+            <arg value="-I${include.dir}"/>
+            <srcfile/>
+            <arg value="-o"/>
+            <targetfile/>
+            <fileset dir="${src.dir}" includes="*.cpp"/>
+            <mapper type="glob" from="*.cpp" to="*.o"/>
+        </apply>
+    </target>
+
+    <target name="compile-windows-target-native" depends="init" if="isBuildWindows" description="Native compile for TARGET_PLATFORM=Windows">
+        <echo message="Compiling for TARGET_PLATFORM=Windows (BUILD_PLATFORM=${BUILD_PLATFORM})..."/>
+
+        <apply executable="g++" dest="${build.dir}/obj" parallel="false" failonerror="true">
+            <arg value="-c"/>
+            <arg value="-std=c++11"/>
+            <arg value="-DBUILD_TOOL=&quot;Ant&quot;"/>
+            <arg value="-DPLATFORM_WINDOWS"/>
+            <arg value="-I${include.dir}"/>
+            <arg value="-IC:/SDL2/include"/>
+            <srcfile/>
+            <arg value="-o"/>
+            <targetfile/>
+            <fileset dir="${src.dir}" includes="*.cpp"/>
+            <mapper type="glob" from="*.cpp" to="*.o"/>
+        </apply>
+    </target>
+
+    <target name="link-windows-target" depends="compile-windows-target-cross,compile-windows-target-native" description="Link for TARGET_PLATFORM=Windows">
+        <echo message="Linking for TARGET_PLATFORM=Windows..."/>
+        <condition property="linker.executable" value="${mingw.prefix}-g++" else="g++">
+            <not><isset property="isBuildWindows"/></not>
+        </condition>
+
+        <exec executable="${linker.executable}" failonerror="true">
+            <arg value="-o"/>
+            <arg value="${build.dir}/MultiPlatformGUI.exe"/>
+            <arg value="${build.dir}/obj/App.o"/>
+            <arg value="${build.dir}/obj/GuiManager.o"/>
+            <arg value="${build.dir}/obj/main.o"/>
+            <arg value="-lmingw32"/>
+            <arg value="-lSDL2main"/>
+            <arg value="-lSDL2"/>
+            <arg value="-lSDL2_image"/>
+        </exec>
+        <echo message="✓ Built for TARGET_PLATFORM=Windows (BUILD_PLATFORM=${BUILD_PLATFORM})"/>
+        <echo message="  Executable: ${build.dir}/MultiPlatformGUI.exe"/>
+    </target>
+
+    <!--
+        Linux TARGET_PLATFORM
+    -->
+    <target name="compile-linux-target" depends="init" description="Compile for TARGET_PLATFORM=Linux">
+        <echo message="Compiling for TARGET_PLATFORM=Linux..."/>
+
+        <apply executable="g++" dest="${build.dir}/obj" parallel="false" failonerror="true">
+            <arg value="-c"/>
+            <arg value="-std=c++11"/>
+            <arg value="-DBUILD_TOOL=&quot;Ant&quot;"/>
+            <arg value="-DPLATFORM_LINUX"/>
+            <arg value="-I${include.dir}"/>
+            <arg value="-I/usr/include/SDL2"/>
+            <srcfile/>
+            <arg value="-o"/>
+            <targetfile/>
+            <fileset dir="${src.dir}" includes="*.cpp"/>
+            <mapper type="glob" from="*.cpp" to="*.o"/>
+        </apply>
+    </target>
+
+    <target name="link-linux-target" depends="compile-linux-target" description="Link for TARGET_PLATFORM=Linux">
+        <echo message="Linking for TARGET_PLATFORM=Linux..."/>
+        <exec executable="g++" failonerror="true">
+            <arg value="-o"/>
+            <arg value="${build.dir}/MultiPlatformGUI"/>
+            <arg value="${build.dir}/obj/App.o"/>
+            <arg value="${build.dir}/obj/GuiManager.o"/>
+            <arg value="${build.dir}/obj/main.o"/>
+            <arg value="-lSDL2"/>
+            <arg value="-lSDL2_image"/>
+        </exec>
+        <echo message="✓ Built for TARGET_PLATFORM=Linux"/>
+        <echo message="  Executable: ${build.dir}/MultiPlatformGUI"/>
+    </target>
+
+    <!--
+        Main build target (auto-detects from TARGET_PLATFORM)
+    -->
+    <target name="build" depends="init" description="Build for TARGET_PLATFORM">
+        <antcall target="build-${TARGET_PLATFORM}"/>
+    </target>
+
+    <!--
+        Platform-specific build targets (public interface)
+    -->
+    <target name="build-macOS" depends="link-macos-target" description="Build for TARGET_PLATFORM=macOS"/>
+
+    <target name="build-iOS" depends="link-ios-target" description="Build for TARGET_PLATFORM=iOS (requires Xcode on macOS)"/>
+
+    <target name="build-Android" depends="build-android-target" description="Build for TARGET_PLATFORM=Android (requires NDK)"/>
+
+    <target name="build-Windows" depends="link-windows-target" description="Build for TARGET_PLATFORM=Windows"/>
+
+    <target name="build-Linux" depends="link-linux-target" description="Build for TARGET_PLATFORM=Linux"/>
+
+    <!--
+        Run
+    -->
+    <target name="run" depends="build" description="Run the application">
+        <condition property="executable" value="${build.dir}/MultiPlatformGUI.exe">
+            <equals arg1="${TARGET_PLATFORM}" arg2="Windows"/>
+        </condition>
+        <condition property="executable" value="${build.dir}/MultiPlatformGUI">
+            <not><equals arg1="${TARGET_PLATFORM}" arg2="Windows"/></not>
+        </condition>
+
+        <exec executable="${executable}" dir="${build.dir}" failonerror="false">
+            <env key="DYLD_LIBRARY_PATH" value="/opt/homebrew/lib:/usr/local/lib"/>
+            <env key="LD_LIBRARY_PATH" value="/usr/lib:/usr/local/lib"/>
+        </exec>
+    </target>
+
+    <!--
+        Help
+    -->
+    <target name="help" description="Display build help">
+        <echo message=""/>
+        <echo message="Multi-Platform GUI Application - Ant Build System"/>
+        <echo message="==================================================="/>
+        <echo message=""/>
+        <echo message="BUILD_PLATFORM (host): ${BUILD_PLATFORM}"/>
+        <echo message=""/>
+        <echo message="Available TARGET_PLATFORM builds:"/>
+        <echo message="  ant build-macOS    - Build for macOS"/>
+        <echo message="  ant build-iOS      - Build for iOS (requires Xcode on macOS)"/>
+        <echo message="  ant build-Android  - Build for Android (requires NDK)"/>
+        <echo message="  ant build-Windows  - Build for Windows"/>
+        <echo message="  ant build-Linux    - Build for Linux"/>
+        <echo message=""/>
+        <echo message="Other targets:"/>
+        <echo message="  ant clean          - Clean build directory"/>
+        <echo message="  ant run            - Build and run the application"/>
+        <echo message="  ant help           - Display this help"/>
+        <echo message=""/>
+    </target>
+</project>
