@@ -49,7 +49,8 @@ message(STATUS "Android NDK: ${ANDROID_NDK_PATH}")
 set(CMAKE_ANDROID_NDK "${ANDROID_NDK_PATH}")
 set(CMAKE_SYSTEM_NAME Android)
 set(CMAKE_SYSTEM_VERSION 21)  # Android 5.0 minimum
-set(CMAKE_ANDROID_ARCH_ABI arm64-v8a)  # Can be: armeabi-v7a, arm64-v8a, x86, x86_64
+set(ANDROID_ABI arm64-v8a)  # Can be: armeabi-v7a, arm64-v8a, x86, x86_64
+set(ANDROID_PLATFORM android-21)
 set(CMAKE_ANDROID_STL_TYPE c++_shared)
 
 # Use NDK's toolchain file

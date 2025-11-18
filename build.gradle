@@ -1,12 +1,4 @@
-plugins {
-    id 'cpp-application'
-}
-
 version = '1.0.0'
-
-application {
-    baseName = 'MultiPlatformGUI'
-}
 
 // BUILD_PLATFORM: Where we're building (host machine)
 def BUILD_PLATFORM = System.getProperty('os.name')
@@ -25,164 +17,141 @@ println "TARGET_PLATFORM (target): ${TARGET_PLATFORM}"
 def toolchainProps = new Properties()
 file('toolchain.properties').withInputStream { toolchainProps.load(it) }
 
-// Native C++ build configuration (for desktop platforms)
-model {
-    components {
-        main(NativeExecutableSpec) {
-            sources {
-                cpp {
-                    source {
-                        srcDir "src"
-                        include "**/*.cpp"
-                    }
-                    exportedHeaders {
-                        srcDir "include"
-                    }
-                }
-            }
+//
+// SDL2 Build Tasks (build SDL2 for each platform if not available)
+//
 
-            binaries.all {
-                // Define build tool
-                cppCompiler.define "BUILD_TOOL", "\"Gradle\""
-
-                // Platform-specific definitions based on TARGET_PLATFORM
-                if (TARGET_PLATFORM == 'MacOS') {
-                    cppCompiler.define "PLATFORM_MACOS"
-                } else if (TARGET_PLATFORM == 'Windows') {
-                    cppCompiler.define "PLATFORM_WINDOWS"
-                } else if (TARGET_PLATFORM == 'Linux') {
-                    cppCompiler.define "PLATFORM_LINUX"
-                } else if (TARGET_PLATFORM == 'iOS') {
-                    cppCompiler.define "PLATFORM_IOS"
-                } else if (TARGET_PLATFORM == 'Android') {
-                    cppCompiler.define "PLATFORM_ANDROID"
-                }
-
-                // C++ standard
-                cppCompiler.args "-std=c++11"
-
-                // Configure based on TARGET_PLATFORM
-                configureForTarget(TARGET_PLATFORM, cppCompiler, linker)
-            }
+task buildSDL2MacOS(type: Exec) {
+    group = 'sdl2'
+    description = 'Build SDL2 for macOS'
+    workingDir file('ext/SDL2')
+    commandLine 'cmake', '-S', '.', '-B', 'build-macos',
+               '-DCMAKE_BUILD_TYPE=Release',
+               '-DCMAKE_INSTALL_PREFIX=../SDL2-install',
+               '-DSDL_STATIC=ON', '-DSDL_SHARED=ON'
+    doLast {
+        exec {
+            workingDir file('ext/SDL2')
+            commandLine 'cmake', '--build', 'build-macos', '--config', 'Release'
         }
+        exec {
+            workingDir file('ext/SDL2')
+            commandLine 'cmake', '--install', 'build-macos'
+        }
+        println "✓ SDL2 built for macOS → ext/SDL2-install"
     }
 }
 
-def configureForTarget(String targetPlatform, cppCompiler, linker) {
-    switch(targetPlatform) {
-        case 'MacOS':
-            // Native macOS build
-            cppCompiler.args "-I/opt/homebrew/include", "-I/opt/homebrew/include/SDL2"
-            cppCompiler.args "-I/usr/local/include", "-I/usr/local/include/SDL2"
-            linker.args "-L/opt/homebrew/lib", "-L/usr/local/lib"
-            linker.args "-lSDL2", "-lSDL2_image"
-            linker.args "-framework", "Cocoa", "-framework", "IOKit", "-framework", "CoreVideo"
-            break
-
-        case 'Linux':
-            // Native Linux build
-            cppCompiler.args "-I/usr/include/SDL2"
-            linker.args "-lSDL2", "-lSDL2_image"
-            break
-
-        case 'Windows':
-            if (isBuildWindows) {
-                // Native Windows build
-                cppCompiler.args "-IC:/SDL2/include"
-                linker.args "-LC:/SDL2/lib"
-                linker.args "-lmingw32", "-lSDL2main", "-lSDL2", "-lSDL2_image"
-            } else {
-                // Cross-compile for Windows using MinGW
-                def mingwPrefix = toolchainProps.getProperty('mingw.prefix', 'x86_64-w64-mingw32')
-                cppCompiler.executable = "${mingwPrefix}-g++"
-                linker.executable = "${mingwPrefix}-g++"
-                // Add MinGW SDL2 paths here
-            }
-            break
-
-        case 'iOS':
-            // iOS cross-compilation (macOS host only)
-            if (isBuildMac) {
-                cppCompiler.args "-arch", "arm64"
-                cppCompiler.args "-isysroot", "`xcrun --sdk iphoneos --show-sdk-path`"
-                cppCompiler.args "-mios-version-min=14.0"
-                linker.args "-arch", "arm64"
-                linker.args "-isysroot", "`xcrun --sdk iphoneos --show-sdk-path`"
-            } else {
-                throw new GradleException("iOS builds require macOS as BUILD_PLATFORM")
-            }
-            break
-
-        case 'Android':
-            // Android handled separately via android/build.gradle
-            println "Android build uses android/build.gradle"
-            break
+task buildSDL2iOS(type: Exec) {
+    group = 'sdl2'
+    description = 'Build SDL2 for iOS'
+    workingDir file('ext/SDL2')
+    commandLine 'cmake', '-S', '.', '-B', 'build-ios',
+               '-DCMAKE_TOOLCHAIN_FILE=../../cmake/toolchains/ios.cmake',
+               '-DCMAKE_BUILD_TYPE=Release',
+               '-DCMAKE_INSTALL_PREFIX=../SDL2-install',
+               '-DSDL_STATIC=ON', '-DSDL_SHARED=OFF'
+    doLast {
+        exec {
+            workingDir file('ext/SDL2')
+            commandLine 'cmake', '--build', 'build-ios', '--config', 'Release'
+        }
+        exec {
+            workingDir file('ext/SDL2')
+            commandLine 'cmake', '--install', 'build-ios'
+        }
+        println "✓ SDL2 built for iOS → ext/SDL2-install"
     }
 }
 
-// Task to copy resources
-task copyResources(type: Copy) {
-    from 'resources'
-    into "$buildDir/exe/main/resources"
+task buildSDL2AndroidConfigure(type: Exec) {
+    group = 'sdl2'
+    description = 'Configure SDL2 for Android (arm64-v8a)'
+    workingDir file('ext/SDL2')
+    commandLine 'cmake', '-S', '.', '-B', 'build-android',
+               '-DCMAKE_TOOLCHAIN_FILE=../../cmake/toolchains/android.cmake',
+               '-DCMAKE_BUILD_TYPE=Release',
+               '-DCMAKE_INSTALL_PREFIX=../SDL2-install/android-temp',
+               '-DSDL_STATIC=OFF', '-DSDL_SHARED=ON'
 }
 
-// Make build depend on copyResources
-tasks.matching { it.name.startsWith('link') }.all {
-    finalizedBy copyResources
+task buildSDL2AndroidCompile(type: Exec) {
+    group = 'sdl2'
+    description = 'Compile SDL2 for Android'
+    workingDir file('ext/SDL2')
+    commandLine 'cmake', '--build', 'build-android', '--config', 'Release'
+    dependsOn buildSDL2AndroidConfigure
+}
+
+task buildSDL2AndroidInstall(type: Exec) {
+    group = 'sdl2'
+    description = 'Install SDL2 for Android'
+    workingDir file('ext/SDL2')
+    commandLine 'cmake', '--install', 'build-android'
+    dependsOn buildSDL2AndroidCompile
+}
+
+task buildSDL2Android {
+    group = 'sdl2'
+    description = 'Build SDL2 for Android (arm64-v8a)'
+    dependsOn buildSDL2AndroidInstall
+    doLast {
+        // Move to ABI-specific directory
+        mkdir('ext/SDL2-install/lib/arm64-v8a')
+        copy {
+            from 'ext/SDL2-install/android-temp/lib'
+            into 'ext/SDL2-install/lib/arm64-v8a'
+        }
+        copy {
+            from 'ext/SDL2-install/android-temp/include'
+            into 'ext/SDL2-install/include'
+        }
+        delete 'ext/SDL2-install/android-temp'
+        println "✓ SDL2 built for Android arm64-v8a → ext/SDL2-install"
+    }
+}
+
+task buildSDL2MinGW(type: Exec) {
+    group = 'sdl2'
+    description = 'Build SDL2 for Windows (MinGW cross-compile)'
+    workingDir file('ext/SDL2')
+    commandLine 'cmake', '-S', '.', '-B', 'build-mingw',
+               '-DCMAKE_TOOLCHAIN_FILE=../../cmake/toolchains/mingw.cmake',
+               '-DCMAKE_BUILD_TYPE=Release',
+               '-DCMAKE_INSTALL_PREFIX=../SDL2-install',
+               '-DSDL_STATIC=ON', '-DSDL_SHARED=ON'
+    doLast {
+        exec {
+            workingDir file('ext/SDL2')
+            commandLine 'cmake', '--build', 'build-mingw', '--config', 'Release'
+        }
+        exec {
+            workingDir file('ext/SDL2')
+            commandLine 'cmake', '--install', 'build-mingw'
+        }
+        println "✓ SDL2 built for Windows (MinGW) → ext/SDL2-install"
+    }
 }
 
 //
 // Platform-specific build tasks
 //
 
-task buildMacOS {
+task buildAndroidAssemble(type: Exec) {
     group = 'build'
-    description = 'Build for TARGET_PLATFORM=MacOS'
-    doFirst {
-        project.ext.set('targetPlatform', 'MacOS')
-        println "Building for TARGET_PLATFORM=MacOS on BUILD_PLATFORM=${BUILD_PLATFORM}"
-    }
-    dependsOn 'build'
-    doLast {
-        println "✓ Built for MacOS with Gradle"
-        println "  Executable: build/exe/main/MultiPlatformGUI"
-    }
-}
-
-task buildIOS {
-    group = 'build'
-    description = 'Build for TARGET_PLATFORM=iOS (requires Xcode on macOS)'
-    doFirst {
-        if (!isBuildMac) {
-            throw new GradleException("iOS builds require BUILD_PLATFORM=macOS (Darwin)")
-        }
-        // Check for Xcode
-        def xcrunExists = "command -v xcrun".execute().waitFor() == 0
-        if (!xcrunExists) {
-            throw new GradleException("Xcode not found. Install with: xcode-select --install")
-        }
-        project.ext.set('targetPlatform', 'iOS')
-        println "Building for TARGET_PLATFORM=iOS on BUILD_PLATFORM=${BUILD_PLATFORM}"
-    }
-    doLast {
-        // Use CMake for iOS build (Gradle native plugin has limited iOS support)
-        exec {
-            workingDir project.projectDir
-            commandLine 'cmake', '-S', '.', '-B', 'build/ios',
-                       '-DCMAKE_TOOLCHAIN_FILE=cmake/toolchains/ios.cmake'
-        }
-        exec {
-            workingDir project.projectDir
-            commandLine 'cmake', '--build', 'build/ios'
-        }
-        println "✓ Built for iOS with Gradle (via CMake toolchain)"
-        println "  Executable: build/ios/MultiPlatformGUI"
+    description = 'Assemble Android APK'
+    workingDir file('android')
+    if (isBuildWindows) {
+        commandLine 'cmd', '/c', 'gradlew', 'assembleDebug'
+    } else {
+        commandLine './gradlew', 'assembleDebug'
     }
 }
 
 task buildAndroid {
     group = 'build'
-    description = 'Build for TARGET_PLATFORM=Android (requires NDK)'
+    description = 'Build Android APK (requires NDK)'
+    dependsOn buildAndroidAssemble
     doFirst {
         // Check for Android NDK
         def ndkDir = toolchainProps.getProperty('android.ndk.dir', '')
@@ -210,63 +179,11 @@ task buildAndroid {
                 )
             }
         }
-        println "Building for TARGET_PLATFORM=Android on BUILD_PLATFORM=${BUILD_PLATFORM}"
+        println "Building Android APK on BUILD_PLATFORM=${BUILD_PLATFORM}"
     }
     doLast {
-        // Build Android APK using android/build.gradle
-        exec {
-            workingDir file('android')
-            if (isBuildWindows) {
-                commandLine 'cmd', '/c', 'gradlew', 'assembleDebug'
-            } else {
-                commandLine './gradlew', 'assembleDebug'
-            }
-        }
-        println "✓ Built for Android with Gradle"
+        println "✓ Built Android APK"
         println "  APK: android/build/outputs/apk/debug/android-debug.apk"
-    }
-}
-
-task buildWindows {
-    group = 'build'
-    description = 'Build for TARGET_PLATFORM=Windows'
-    doFirst {
-        if (!isBuildWindows) {
-            // Cross-compiling: check for MinGW
-            def mingwPrefix = toolchainProps.getProperty('mingw.prefix', 'x86_64-w64-mingw32')
-            def mingwExists = "${mingwPrefix}-gcc".execute().waitFor() == 0
-            if (!mingwExists) {
-                throw new GradleException(
-                    "MinGW not found for Windows cross-compilation!\n" +
-                    "Install with:\n" +
-                    "  macOS: brew install mingw-w64\n" +
-                    "  Linux: sudo apt-get install mingw-w64"
-                )
-            }
-            println "Cross-compiling for TARGET_PLATFORM=Windows on BUILD_PLATFORM=${BUILD_PLATFORM}"
-        } else {
-            println "Building for TARGET_PLATFORM=Windows on BUILD_PLATFORM=${BUILD_PLATFORM}"
-        }
-        project.ext.set('targetPlatform', 'Windows')
-    }
-    dependsOn 'build'
-    doLast {
-        println "✓ Built for Windows with Gradle"
-        println "  Executable: build/exe/main/MultiPlatformGUI.exe"
-    }
-}
-
-task buildLinux {
-    group = 'build'
-    description = 'Build for TARGET_PLATFORM=Linux'
-    doFirst {
-        project.ext.set('targetPlatform', 'Linux')
-        println "Building for TARGET_PLATFORM=Linux on BUILD_PLATFORM=${BUILD_PLATFORM}"
-    }
-    dependsOn 'build'
-    doLast {
-        println "✓ Built for Linux with Gradle"
-        println "  Executable: build/exe/main/MultiPlatformGUI"
     }
 }
 
@@ -285,13 +202,8 @@ task printConfig {
         println "==================================="
         println ""
         println "Available tasks:"
-        println "  gradle buildMacOS    - Build for macOS"
-        println "  gradle buildIOS      - Build for iOS (requires Xcode)"
-        println "  gradle buildAndroid  - Build for Android (requires NDK)"
-        println "  gradle buildWindows  - Build for Windows"
-        println "  gradle buildLinux    - Build for Linux"
+        println "  gradle buildSDL2Android - Build SDL2 for Android"
+        println "  gradle buildAndroid     - Build Android APK"
         println ""
     }
 }
-
-build.dependsOn printConfig

@@ -1,6 +1,6 @@
 #include "App.h"
 #include <iostream>
-#include <SDL2/SDL_image.h>
+// #include <SDL2/SDL_image.h>  // Disabled for now - not building SDL_image
 
 App::App(const std::string& buildTool)
     : isRunning(false), buildTool(buildTool), window(nullptr),
@@ -19,11 +19,12 @@ bool App::initialize() {
     }
 
     // Initialize SDL_image for PNG loading
-    int imgFlags = IMG_INIT_PNG;
-    if (!(IMG_Init(imgFlags) & imgFlags)) {
-        std::cerr << "SDL_image initialization failed: " << IMG_GetError() << std::endl;
-        std::cout << "Continuing without image loading support..." << std::endl;
-    }
+    // int imgFlags = IMG_INIT_PNG;
+    // if (!(IMG_Init(imgFlags) & imgFlags)) {
+    //     std::cerr << "SDL_image initialization failed: " << IMG_GetError() << std::endl;
+    //     std::cout << "Continuing without image loading support..." << std::endl;
+    // }
+    std::cout << "SDL_image disabled - using basic SDL2 drawing only" << std::endl;
 
     // Create window
     window = SDL_CreateWindow("Multi-Platform GUI App",
@@ -128,7 +129,7 @@ void App::cleanup() {
         window = nullptr;
     }
 
-    IMG_Quit();
+    // IMG_Quit();  // Disabled - not using SDL_image
     SDL_Quit();
 
     std::cout << "Application cleaned up" << std::endl;

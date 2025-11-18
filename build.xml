@@ -65,6 +65,121 @@
     </target>
 
     <!--
+        SDL2 Build Targets (build SDL2 for each platform if not available)
+    -->
+    <target name="build-sdl2-macos" description="Build SDL2 for macOS">
+        <echo message="Building SDL2 for macOS..."/>
+        <exec executable="cmake" dir="ext/SDL2" failonerror="true">
+            <arg value="-S"/>
+            <arg value="."/>
+            <arg value="-B"/>
+            <arg value="build-macos"/>
+            <arg value="-DCMAKE_BUILD_TYPE=Release"/>
+            <arg value="-DCMAKE_INSTALL_PREFIX=../SDL2-install"/>
+            <arg value="-DSDL_STATIC=ON"/>
+            <arg value="-DSDL_SHARED=ON"/>
+        </exec>
+        <exec executable="cmake" dir="ext/SDL2" failonerror="true">
+            <arg value="--build"/>
+            <arg value="build-macos"/>
+            <arg value="--config"/>
+            <arg value="Release"/>
+        </exec>
+        <exec executable="cmake" dir="ext/SDL2" failonerror="true">
+            <arg value="--install"/>
+            <arg value="build-macos"/>
+        </exec>
+        <echo message="✓ SDL2 built for macOS → ext/SDL2-install"/>
+    </target>
+
+    <target name="build-sdl2-ios" description="Build SDL2 for iOS">
+        <echo message="Building SDL2 for iOS..."/>
+        <exec executable="cmake" dir="ext/SDL2" failonerror="true">
+            <arg value="-S"/>
+            <arg value="."/>
+            <arg value="-B"/>
+            <arg value="build-ios"/>
+            <arg value="-DCMAKE_TOOLCHAIN_FILE=../../cmake/toolchains/ios.cmake"/>
+            <arg value="-DCMAKE_BUILD_TYPE=Release"/>
+            <arg value="-DCMAKE_INSTALL_PREFIX=../SDL2-install"/>
+            <arg value="-DSDL_STATIC=ON"/>
+            <arg value="-DSDL_SHARED=OFF"/>
+        </exec>
+        <exec executable="cmake" dir="ext/SDL2" failonerror="true">
+            <arg value="--build"/>
+            <arg value="build-ios"/>
+            <arg value="--config"/>
+            <arg value="Release"/>
+        </exec>
+        <exec executable="cmake" dir="ext/SDL2" failonerror="true">
+            <arg value="--install"/>
+            <arg value="build-ios"/>
+        </exec>
+        <echo message="✓ SDL2 built for iOS → ext/SDL2-install"/>
+    </target>
+
+    <target name="build-sdl2-android" description="Build SDL2 for Android (arm64-v8a)">
+        <echo message="Building SDL2 for Android (arm64-v8a)..."/>
+        <exec executable="cmake" dir="ext/SDL2" failonerror="true">
+            <arg value="-S"/>
+            <arg value="."/>
+            <arg value="-B"/>
+            <arg value="build-android"/>
+            <arg value="-DCMAKE_TOOLCHAIN_FILE=../../cmake/toolchains/android.cmake"/>
+            <arg value="-DCMAKE_BUILD_TYPE=Release"/>
+            <arg value="-DCMAKE_INSTALL_PREFIX=../SDL2-install/android-temp"/>
+            <arg value="-DSDL_STATIC=OFF"/>
+            <arg value="-DSDL_SHARED=ON"/>
+        </exec>
+        <exec executable="cmake" dir="ext/SDL2" failonerror="true">
+            <arg value="--build"/>
+            <arg value="build-android"/>
+            <arg value="--config"/>
+            <arg value="Release"/>
+        </exec>
+        <exec executable="cmake" dir="ext/SDL2" failonerror="true">
+            <arg value="--install"/>
+            <arg value="build-android"/>
+        </exec>
+        <!-- Move to ABI-specific directory -->
+        <mkdir dir="ext/SDL2-install/lib/arm64-v8a"/>
+        <copy todir="ext/SDL2-install/lib/arm64-v8a">
+            <fileset dir="ext/SDL2-install/android-temp/lib"/>
+        </copy>
+        <copy todir="ext/SDL2-install/include">
+            <fileset dir="ext/SDL2-install/android-temp/include"/>
+        </copy>
+        <delete dir="ext/SDL2-install/android-temp"/>
+        <echo message="✓ SDL2 built for Android arm64-v8a → ext/SDL2-install"/>
+    </target>
+
+    <target name="build-sdl2-mingw" description="Build SDL2 for Windows (MinGW)">
+        <echo message="Building SDL2 for Windows (MinGW)..."/>
+        <exec executable="cmake" dir="ext/SDL2" failonerror="true">
+            <arg value="-S"/>
+            <arg value="."/>
+            <arg value="-B"/>
+            <arg value="build-mingw"/>
+            <arg value="-DCMAKE_TOOLCHAIN_FILE=../../cmake/toolchains/mingw.cmake"/>
+            <arg value="-DCMAKE_BUILD_TYPE=Release"/>
+            <arg value="-DCMAKE_INSTALL_PREFIX=../SDL2-install"/>
+            <arg value="-DSDL_STATIC=ON"/>
+            <arg value="-DSDL_SHARED=ON"/>
+        </exec>
+        <exec executable="cmake" dir="ext/SDL2" failonerror="true">
+            <arg value="--build"/>
+            <arg value="build-mingw"/>
+            <arg value="--config"/>
+            <arg value="Release"/>
+        </exec>
+        <exec executable="cmake" dir="ext/SDL2" failonerror="true">
+            <arg value="--install"/>
+            <arg value="build-mingw"/>
+        </exec>
+        <echo message="✓ SDL2 built for Windows (MinGW) → ext/SDL2-install"/>
+    </target>
+
+    <!--
         macOS TARGET_PLATFORM
     -->
     <target name="compile-macos-target" depends="init" description="Compile for TARGET_PLATFORM=macOS">
@@ -99,7 +214,6 @@
             <arg value="-L/opt/homebrew/lib"/>
             <arg value="-L/usr/local/lib"/>
             <arg value="-lSDL2"/>
-            <arg value="-lSDL2_image"/>
             <arg value="-framework"/>
             <arg value="Cocoa"/>
             <arg value="-framework"/>
@@ -205,8 +319,9 @@
         <echo message="Using Android Gradle build system for APK..."/>
 
         <!-- Use Gradle to build Android APK -->
-        <exec executable="gradle" dir="android" failonerror="true">
+        <exec executable="${basedir}/android/gradlew" dir="android" failonerror="true">
             <arg value="assembleDebug"/>
+            <env key="JAVA_HOME" value="/usr/local/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home"/>
         </exec>
 
         <echo message="✓ Built for TARGET_PLATFORM=Android (BUILD_PLATFORM=${BUILD_PLATFORM})"/>
@@ -282,7 +397,6 @@
             <arg value="-lmingw32"/>
             <arg value="-lSDL2main"/>
             <arg value="-lSDL2"/>
-            <arg value="-lSDL2_image"/>
         </exec>
         <echo message="✓ Built for TARGET_PLATFORM=Windows (BUILD_PLATFORM=${BUILD_PLATFORM})"/>
         <echo message="  Executable: ${build.dir}/MultiPlatformGUI.exe"/>
@@ -318,7 +432,6 @@
             <arg value="${build.dir}/obj/GuiManager.o"/>
             <arg value="${build.dir}/obj/main.o"/>
             <arg value="-lSDL2"/>
-            <arg value="-lSDL2_image"/>
         </exec>
         <echo message="✓ Built for TARGET_PLATFORM=Linux"/>
         <echo message="  Executable: ${build.dir}/MultiPlatformGUI"/>

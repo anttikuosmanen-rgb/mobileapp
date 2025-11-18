@@ -53,13 +53,14 @@ mobileapp/
 
 ### macOS BUILD_PLATFORM
 ```bash
-brew install sdl2 sdl2_image cmake gradle ant
+brew install cmake gradle ant
 # For iOS builds:
 xcode-select --install
 # For Windows cross-compilation:
 brew install mingw-w64
 # For Android builds:
-# Install Android Studio and NDK
+brew install openjdk@21  # Java 21 LTS required for Gradle 8.x
+# Android SDK and NDK will be installed via setup scripts (see android/README.md)
 ```
 
 ### Linux BUILD_PLATFORM
@@ -95,16 +96,18 @@ cmake --build build --target windows    # TARGET_PLATFORM=Windows
 ### Gradle
 
 ```bash
-# Native build
-gradle build
+# Build SDL2 for Android (required first time)
+gradle buildSDL2Android
 
-# Cross-compile for specific TARGET_PLATFORM
-gradle buildMacOS     # TARGET_PLATFORM=macOS
-gradle buildIOS       # TARGET_PLATFORM=iOS (macOS only)
-gradle buildAndroid   # TARGET_PLATFORM=Android
-gradle buildWindows   # TARGET_PLATFORM=Windows
-gradle buildLinux     # TARGET_PLATFORM=Linux
+# Build Android APK
+gradle buildAndroid
+
+# Or build directly from android/ directory
+cd android
+JAVA_HOME=/usr/local/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew assembleDebug
 ```
+
+**Note:** For detailed Android build configuration and troubleshooting, see [`android/README.md`](android/README.md)
 
 ### Ant
 
@@ -160,8 +163,9 @@ The GUI application demonstrates:
 - Windows: `build/windows/MultiPlatformGUI.exe`
 
 ### Gradle
-- Native: `build/exe/main/MultiPlatformGUI`
-- Android APK: `android/build/outputs/apk/debug/android-debug.apk`
+- Android APK (debug): `android/build/outputs/apk/debug/MultiPlatformGUI-Android-debug.apk`
+- Android APK (release): `android/build/outputs/apk/release/MultiPlatformGUI-Android-release-unsigned.apk`
+- Native library: `android/build/intermediates/cxx/Debug/*/obj/arm64-v8a/libMultiPlatformGUI.so`
 
 ### Ant
 - All platforms: `build/ant/MultiPlatformGUI` (or `.exe` for Windows)
@@ -185,8 +189,11 @@ sudo apt-get install libsdl2-dev libsdl2-image-dev
 - Only works when BUILD_PLATFORM=macOS
 
 ### Android Build Fails
-- Install Android Studio and Android NDK
-- Update `android.ndk.dir` in `toolchain.properties`
+- Ensure Java 21 is installed: `brew install openjdk@21`
+- Install Android SDK and NDK (see `android/README.md` for detailed instructions)
+- Create `android/local.properties` with SDK and NDK paths
+- Build SDL2 for Android first: `gradle buildSDL2Android`
+- See `android/README.md` for comprehensive troubleshooting guide
 
 ### MinGW Not Found (Windows cross-compilation)
 ```bash

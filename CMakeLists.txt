@@ -54,32 +54,140 @@ set(SOURCES
     src/GuiManager.cpp
 )
 
+#
+# SDL2 Build Targets (build SDL2 if not available)
+#
+set(SDL2_SOURCE_DIR "${CMAKE_SOURCE_DIR}/ext/SDL2")
+set(SDL2_PREBUILT_DIR "${CMAKE_SOURCE_DIR}/ext/SDL2-install")
+
+# Custom target to build SDL2 for current TARGET_PLATFORM
+add_custom_target(build-sdl2
+    COMMENT "Building SDL2 for ${TARGET_PLATFORM}..."
+)
+
+# Platform-specific SDL2 build commands
+if(NOT CMAKE_TOOLCHAIN_FILE)
+    # Only add these helper targets when not already cross-compiling
+
+    add_custom_target(build-sdl2-macos
+        COMMAND ${CMAKE_COMMAND} -S ${SDL2_SOURCE_DIR} -B ${SDL2_SOURCE_DIR}/build-macos
+                -DCMAKE_BUILD_TYPE=Release
+                -DCMAKE_INSTALL_PREFIX=${SDL2_PREBUILT_DIR}
+                -DSDL_STATIC=ON -DSDL_SHARED=ON
+        COMMAND ${CMAKE_COMMAND} --build ${SDL2_SOURCE_DIR}/build-macos --config Release
+        COMMAND ${CMAKE_COMMAND} --install ${SDL2_SOURCE_DIR}/build-macos
+        COMMENT "Built SDL2 for macOS → ${SDL2_PREBUILT_DIR}"
+    )
+
+    add_custom_target(build-sdl2-ios
+        COMMAND ${CMAKE_COMMAND} -S ${SDL2_SOURCE_DIR} -B ${SDL2_SOURCE_DIR}/build-ios
+                -DCMAKE_TOOLCHAIN_FILE=${CMAKE_SOURCE_DIR}/cmake/toolchains/ios.cmake
+                -DCMAKE_BUILD_TYPE=Release
+                -DCMAKE_INSTALL_PREFIX=${SDL2_PREBUILT_DIR}
+                -DSDL_STATIC=ON -DSDL_SHARED=OFF
+        COMMAND ${CMAKE_COMMAND} --build ${SDL2_SOURCE_DIR}/build-ios --config Release
+        COMMAND ${CMAKE_COMMAND} --install ${SDL2_SOURCE_DIR}/build-ios
+        COMMENT "Built SDL2 for iOS → ${SDL2_PREBUILT_DIR}"
+    )
+
+    add_custom_target(build-sdl2-android
+        COMMAND ${CMAKE_COMMAND} -S ${SDL2_SOURCE_DIR} -B ${SDL2_SOURCE_DIR}/build-android
+                -DCMAKE_TOOLCHAIN_FILE=${CMAKE_SOURCE_DIR}/cmake/toolchains/android.cmake
+                -DCMAKE_BUILD_TYPE=Release
+                -DCMAKE_INSTALL_PREFIX=${SDL2_PREBUILT_DIR}/android-temp
+                -DSDL_STATIC=OFF -DSDL_SHARED=ON
+        COMMAND ${CMAKE_COMMAND} --build ${SDL2_SOURCE_DIR}/build-android --config Release
+        COMMAND ${CMAKE_COMMAND} --install ${SDL2_SOURCE_DIR}/build-android
+        # Move libraries to ABI-specific directory
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${SDL2_PREBUILT_DIR}/lib/arm64-v8a
+        COMMAND ${CMAKE_COMMAND} -E copy_directory ${SDL2_PREBUILT_DIR}/android-temp/lib ${SDL2_PREBUILT_DIR}/lib/arm64-v8a
+        COMMAND ${CMAKE_COMMAND} -E copy_directory ${SDL2_PREBUILT_DIR}/android-temp/include ${SDL2_PREBUILT_DIR}/include
+        COMMAND ${CMAKE_COMMAND} -E remove_directory ${SDL2_PREBUILT_DIR}/android-temp
+        COMMENT "Built SDL2 for Android arm64-v8a → ${SDL2_PREBUILT_DIR}"
+    )
+
+    add_custom_target(build-sdl2-mingw
+        COMMAND ${CMAKE_COMMAND} -S ${SDL2_SOURCE_DIR} -B ${SDL2_SOURCE_DIR}/build-mingw
+                -DCMAKE_TOOLCHAIN_FILE=${CMAKE_SOURCE_DIR}/cmake/toolchains/mingw.cmake
+                -DCMAKE_BUILD_TYPE=Release
+                -DCMAKE_INSTALL_PREFIX=${SDL2_PREBUILT_DIR}
+                -DSDL_STATIC=ON -DSDL_SHARED=ON
+        COMMAND ${CMAKE_COMMAND} --build ${SDL2_SOURCE_DIR}/build-mingw --config Release
+        COMMAND ${CMAKE_COMMAND} --install ${SDL2_SOURCE_DIR}/build-mingw
+        COMMENT "Built SDL2 for Windows (MinGW) → ${SDL2_PREBUILT_DIR}"
+    )
+endif()
+
 # SDL2 Configuration based on TARGET_PLATFORM
+# Strategy: 1) System libs, 2) Pre-built in ext/SDL2-install, 3) Build with build-sdl2-* targets
+
 if(TARGET_PLATFORM STREQUAL "MacOS")
-    # macOS: Try Homebrew locations
-    set(SDL2_INCLUDE_DIRS /opt/homebrew/include /usr/local/include)
-    set(SDL2_LIBRARIES "-L/opt/homebrew/lib -L/usr/local/lib -lSDL2 -lSDL2_image")
+    # macOS: Try Homebrew first, then pre-built
+    if(EXISTS "/opt/homebrew/include/SDL2" OR EXISTS "/usr/local/include/SDL2")
+        set(SDL2_INCLUDE_DIRS /opt/homebrew/include /usr/local/include)
+        set(SDL2_LIBRARIES "-L/opt/homebrew/lib -L/usr/local/lib -lSDL2")
+        message(STATUS "SDL2: Using system libraries (Homebrew)")
+    elseif(EXISTS "${SDL2_PREBUILT_DIR}/include/SDL2")
+        set(SDL2_INCLUDE_DIRS ${SDL2_PREBUILT_DIR}/include)
+        set(SDL2_LIBRARIES "-L${SDL2_PREBUILT_DIR}/lib -lSDL2")
+        message(STATUS "SDL2: Using pre-built from ext/SDL2-install")
+    else()
+        message(FATAL_ERROR "SDL2 not found!\n  Install: brew install sdl2 sdl2_image\n  Or build: cmake --build build --target build-sdl2-macos")
+    endif()
     include_directories(${SDL2_INCLUDE_DIRS})
+
 elseif(TARGET_PLATFORM STREQUAL "iOS")
-    # iOS: Would need SDL2 built for iOS
-    message(STATUS "iOS build: Ensure SDL2 is built for iOS platform")
-    # Add custom SDL2 iOS paths here
+    # iOS: Use pre-built framework
+    if(EXISTS "${SDL2_PREBUILT_DIR}/lib/SDL2.framework")
+        set(SDL2_INCLUDE_DIRS ${SDL2_PREBUILT_DIR}/include)
+        set(SDL2_LIBRARIES ${SDL2_PREBUILT_DIR}/lib/SDL2.framework)
+        message(STATUS "SDL2: Using pre-built iOS framework from ext/SDL2-install")
+    else()
+        message(FATAL_ERROR "SDL2 iOS framework not found!\n  Build: cmake --build build --target build-sdl2-ios")
+    endif()
+    include_directories(${SDL2_INCLUDE_DIRS})
+
 elseif(TARGET_PLATFORM STREQUAL "Android")
-    # Android: SDL2 provided via NDK or custom build
-    message(STATUS "Android build: SDL2 integration via NDK")
+    # Android: Use pre-built NDK libraries
+    if(EXISTS "${SDL2_PREBUILT_DIR}/lib/${CMAKE_ANDROID_ARCH_ABI}")
+        set(SDL2_INCLUDE_DIRS ${SDL2_PREBUILT_DIR}/include)
+        set(SDL2_LIBRARIES ${SDL2_PREBUILT_DIR}/lib/${CMAKE_ANDROID_ARCH_ABI}/libSDL2.so)
+        message(STATUS "SDL2: Using pre-built Android libraries from ext/SDL2-install")
+    else()
+        message(FATAL_ERROR "SDL2 Android libraries not found!\n  Build: cmake --build build --target build-sdl2-android")
+    endif()
+    include_directories(${SDL2_INCLUDE_DIRS})
+
 elseif(TARGET_PLATFORM STREQUAL "Windows")
     if(MINGW)
-        # Windows cross-compilation: MinGW
-        message(STATUS "Windows cross-compile: Configure SDL2 for MinGW")
-        # Add MinGW SDL2 paths
+        # Windows cross-compilation: Use pre-built MinGW libs
+        if(EXISTS "${SDL2_PREBUILT_DIR}/lib/libSDL2.a")
+            set(SDL2_INCLUDE_DIRS ${SDL2_PREBUILT_DIR}/include)
+            set(SDL2_LIBRARIES "-L${SDL2_PREBUILT_DIR}/lib -lSDL2")
+            message(STATUS "SDL2: Using pre-built MinGW libraries from ext/SDL2-install")
+        else()
+            message(FATAL_ERROR "SDL2 MinGW libraries not found!\n  Build: cmake --build build --target build-sdl2-mingw")
+        endif()
+        include_directories(${SDL2_INCLUDE_DIRS})
     else()
         # Windows native
         set(SDL2_INCLUDE_DIRS "C:/SDL2/include")
-        set(SDL2_LIBRARIES "-LC:/SDL2/lib -lSDL2main -lSDL2 -lSDL2_image")
+        set(SDL2_LIBRARIES "-LC:/SDL2/lib -lSDL2main -lSDL2")
     endif()
+
 elseif(TARGET_PLATFORM STREQUAL "Linux")
-    set(SDL2_INCLUDE_DIRS "/usr/include/SDL2")
-    set(SDL2_LIBRARIES "-lSDL2 -lSDL2_image")
+    # Linux: Try system libs first, then pre-built
+    if(EXISTS "/usr/include/SDL2")
+        set(SDL2_INCLUDE_DIRS "/usr/include/SDL2")
+        set(SDL2_LIBRARIES "-lSDL2")
+        message(STATUS "SDL2: Using system libraries")
+    elseif(EXISTS "${SDL2_PREBUILT_DIR}/include/SDL2")
+        set(SDL2_INCLUDE_DIRS ${SDL2_PREBUILT_DIR}/include)
+        set(SDL2_LIBRARIES "-L${SDL2_PREBUILT_DIR}/lib -lSDL2")
+        message(STATUS "SDL2: Using pre-built from ext/SDL2-install")
+    else()
+        message(FATAL_ERROR "SDL2 not found!\n  Install: sudo apt-get install libsdl2-dev libsdl2-image-dev\n  Or build: cmake --build build --target build-sdl2-macos")
+    endif()
     include_directories(${SDL2_INCLUDE_DIRS})
 endif()
 

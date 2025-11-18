@@ -1,6 +1,6 @@
 #include "GuiManager.h"
 #include <iostream>
-#include <SDL2/SDL_image.h>
+// #include <SDL2/SDL_image.h>  // Disabled - not using SDL_image
 
 GuiManager::GuiManager(SDL_Renderer* renderer, const std::string& buildTool)
     : renderer(renderer), backgroundTexture(nullptr), backgroundSurface(nullptr),
@@ -63,24 +63,9 @@ bool GuiManager::createDefaultBackground() {
 }
 
 bool GuiManager::loadResources() {
-    // Try to load background image from resources
-    std::string backgroundPath = "resources/background.png";
-    SDL_Surface* loadedSurface = IMG_Load(backgroundPath.c_str());
-
-    if (loadedSurface) {
-        backgroundSurface = loadedSurface;
-        backgroundTexture = SDL_CreateTextureFromSurface(renderer, backgroundSurface);
-        if (!backgroundTexture) {
-            std::cerr << "Failed to create texture from " << backgroundPath << ": " << SDL_GetError() << std::endl;
-            SDL_FreeSurface(loadedSurface);
-            return createDefaultBackground();
-        }
-        std::cout << "Loaded background image: " << backgroundPath << std::endl;
-        return true;
-    } else {
-        std::cout << "Background image not found, creating default background" << std::endl;
-        return createDefaultBackground();
-    }
+    // SDL_image disabled - using default gradient background
+    std::cout << "Using default gradient background (SDL_image disabled)" << std::endl;
+    return createDefaultBackground();
 }
 
 void GuiManager::render() {
