@@ -229,14 +229,13 @@
         iOS TARGET_PLATFORM
     -->
     <target name="check-ios-requirements" description="Check iOS build requirements">
-        <exec executable="bash" outputproperty="has.xcrun" failonerror="false">
-            <arg value="-c"/>
-            <arg value="command -v xcrun &amp;&amp; echo 'true' || echo 'false'"/>
+        <exec executable="xcrun" resultproperty="xcrun.result" failonerror="false">
+            <arg value="--version"/>
         </exec>
         <condition property="ios.requirements.met">
             <and>
                 <isset property="isBuildMac"/>
-                <equals arg1="${has.xcrun}" arg2="true"/>
+                <equals arg1="${xcrun.result}" arg2="0"/>
             </and>
         </condition>
         <fail unless="ios.requirements.met" message="iOS builds require BUILD_PLATFORM=macOS with Xcode installed. Run: xcode-select --install"/>
@@ -264,6 +263,7 @@
             <arg value="-DBUILD_TOOL=&quot;Ant&quot;"/>
             <arg value="-DPLATFORM_IOS"/>
             <arg value="-I${include.dir}"/>
+            <arg value="-Iext/SDL2-install/include"/>
             <srcfile/>
             <arg value="-o"/>
             <targetfile/>
@@ -291,12 +291,38 @@
             <arg value="${build.dir}/obj/App.o"/>
             <arg value="${build.dir}/obj/GuiManager.o"/>
             <arg value="${build.dir}/obj/main.o"/>
+            <arg value="-Lext/SDL2-install/lib"/>
+            <arg value="-lSDL2main"/>
+            <arg value="-lSDL2"/>
+            <arg value="-liconv"/>
             <arg value="-framework"/>
             <arg value="Foundation"/>
             <arg value="-framework"/>
             <arg value="UIKit"/>
             <arg value="-framework"/>
             <arg value="CoreGraphics"/>
+            <arg value="-framework"/>
+            <arg value="CoreVideo"/>
+            <arg value="-framework"/>
+            <arg value="CoreAudio"/>
+            <arg value="-framework"/>
+            <arg value="AudioToolbox"/>
+            <arg value="-framework"/>
+            <arg value="AVFoundation"/>
+            <arg value="-framework"/>
+            <arg value="Metal"/>
+            <arg value="-framework"/>
+            <arg value="QuartzCore"/>
+            <arg value="-framework"/>
+            <arg value="OpenGLES"/>
+            <arg value="-framework"/>
+            <arg value="GameController"/>
+            <arg value="-framework"/>
+            <arg value="CoreMotion"/>
+            <arg value="-framework"/>
+            <arg value="CoreBluetooth"/>
+            <arg value="-framework"/>
+            <arg value="CoreHaptics"/>
         </exec>
         <echo message="✓ Built for TARGET_PLATFORM=iOS (BUILD_PLATFORM=${BUILD_PLATFORM})"/>
         <echo message="  Executable: ${build.dir}/MultiPlatformGUI"/>

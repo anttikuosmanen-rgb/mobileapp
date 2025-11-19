@@ -137,13 +137,17 @@ if(TARGET_PLATFORM STREQUAL "MacOS")
     include_directories(${SDL2_INCLUDE_DIRS})
 
 elseif(TARGET_PLATFORM STREQUAL "iOS")
-    # iOS: Use pre-built framework
-    if(EXISTS "${SDL2_PREBUILT_DIR}/lib/SDL2.framework")
+    # iOS: Use pre-built static library
+    if(EXISTS "${SDL2_PREBUILT_DIR}/lib/libSDL2.a")
         set(SDL2_INCLUDE_DIRS ${SDL2_PREBUILT_DIR}/include)
-        set(SDL2_LIBRARIES ${SDL2_PREBUILT_DIR}/lib/SDL2.framework)
-        message(STATUS "SDL2: Using pre-built iOS framework from ext/SDL2-install")
+        set(SDL2_LIBRARIES
+            ${SDL2_PREBUILT_DIR}/lib/libSDL2main.a
+            ${SDL2_PREBUILT_DIR}/lib/libSDL2.a
+            iconv
+        )
+        message(STATUS "SDL2: Using pre-built iOS static library from ext/SDL2-install")
     else()
-        message(FATAL_ERROR "SDL2 iOS framework not found!\n  Build: cmake --build build --target build-sdl2-ios")
+        message(FATAL_ERROR "SDL2 iOS library not found!\n  Build: cmake --build build --target build-sdl2-ios")
     endif()
     include_directories(${SDL2_INCLUDE_DIRS})
 
@@ -215,7 +219,33 @@ elseif(TARGET_PLATFORM STREQUAL "iOS")
     find_library(FOUNDATION_LIBRARY Foundation)
     find_library(UIKIT_LIBRARY UIKit)
     find_library(COREGRAPHICS_LIBRARY CoreGraphics)
-    target_link_libraries(${PROJECT_NAME} ${FOUNDATION_LIBRARY} ${UIKIT_LIBRARY} ${COREGRAPHICS_LIBRARY})
+    find_library(COREVIDEO_LIBRARY CoreVideo)
+    find_library(COREAUDIO_LIBRARY CoreAudio)
+    find_library(AUDIOTOOLBOX_LIBRARY AudioToolbox)
+    find_library(AVFOUNDATION_LIBRARY AVFoundation)
+    find_library(METAL_LIBRARY Metal)
+    find_library(QUARTZCORE_LIBRARY QuartzCore)
+    find_library(OPENGLES_LIBRARY OpenGLES)
+    find_library(GAMECONTROLLER_LIBRARY GameController)
+    find_library(COREMOTION_LIBRARY CoreMotion)
+    find_library(COREBLUETOOTH_LIBRARY CoreBluetooth)
+    find_library(COREHAPTICS_LIBRARY CoreHaptics)
+    target_link_libraries(${PROJECT_NAME}
+        ${FOUNDATION_LIBRARY}
+        ${UIKIT_LIBRARY}
+        ${COREGRAPHICS_LIBRARY}
+        ${COREVIDEO_LIBRARY}
+        ${COREAUDIO_LIBRARY}
+        ${AUDIOTOOLBOX_LIBRARY}
+        ${AVFOUNDATION_LIBRARY}
+        ${METAL_LIBRARY}
+        ${QUARTZCORE_LIBRARY}
+        ${OPENGLES_LIBRARY}
+        ${GAMECONTROLLER_LIBRARY}
+        ${COREMOTION_LIBRARY}
+        ${COREBLUETOOTH_LIBRARY}
+        ${COREHAPTICS_LIBRARY}
+    )
 elseif(TARGET_PLATFORM STREQUAL "Windows" AND MINGW)
     target_link_libraries(${PROJECT_NAME} mingw32 ws2_32 winmm gdi32 imm32 ole32 oleaut32 version uuid)
 elseif(TARGET_PLATFORM STREQUAL "Android")
@@ -244,8 +274,7 @@ if(NOT CMAKE_TOOLCHAIN_FILE)
 
     add_custom_target(ios
         COMMAND ${CMAKE_COMMAND} -E echo "Building for TARGET_PLATFORM=iOS on BUILD_PLATFORM=${BUILD_PLATFORM}..."
-        COMMAND ${CMAKE_COMMAND} -E echo "Checking for Xcode..."
-        COMMAND bash -c "if ! command -v xcrun &> /dev/null; then echo 'ERROR: Xcode not found. Install with: xcode-select --install'; exit 1; fi"
+        COMMAND xcrun --version
         COMMAND ${CMAKE_COMMAND}
             -S ${CMAKE_SOURCE_DIR}
             -B ${CMAKE_BINARY_DIR}/ios

@@ -42,24 +42,38 @@ task buildSDL2MacOS(type: Exec) {
     }
 }
 
-task buildSDL2iOS(type: Exec) {
+task buildSDL2iOSConfigure(type: Exec) {
     group = 'sdl2'
-    description = 'Build SDL2 for iOS'
+    description = 'Configure SDL2 for iOS'
     workingDir file('ext/SDL2')
     commandLine 'cmake', '-S', '.', '-B', 'build-ios',
                '-DCMAKE_TOOLCHAIN_FILE=../../cmake/toolchains/ios.cmake',
                '-DCMAKE_BUILD_TYPE=Release',
                '-DCMAKE_INSTALL_PREFIX=../SDL2-install',
                '-DSDL_STATIC=ON', '-DSDL_SHARED=OFF'
+}
+
+task buildSDL2iOSCompile(type: Exec) {
+    group = 'sdl2'
+    description = 'Compile SDL2 for iOS'
+    workingDir file('ext/SDL2')
+    commandLine 'cmake', '--build', 'build-ios', '--config', 'Release'
+    dependsOn buildSDL2iOSConfigure
+}
+
+task buildSDL2iOSInstall(type: Exec) {
+    group = 'sdl2'
+    description = 'Install SDL2 for iOS'
+    workingDir file('ext/SDL2')
+    commandLine 'cmake', '--install', 'build-ios'
+    dependsOn buildSDL2iOSCompile
+}
+
+task buildSDL2iOS {
+    group = 'sdl2'
+    description = 'Build SDL2 for iOS'
+    dependsOn buildSDL2iOSInstall
     doLast {
-        exec {
-            workingDir file('ext/SDL2')
-            commandLine 'cmake', '--build', 'build-ios', '--config', 'Release'
-        }
-        exec {
-            workingDir file('ext/SDL2')
-            commandLine 'cmake', '--install', 'build-ios'
-        }
         println "✓ SDL2 built for iOS → ext/SDL2-install"
     }
 }
@@ -137,6 +151,98 @@ task buildSDL2MinGW(type: Exec) {
 // Platform-specific build tasks
 //
 
+task buildIOSCheck {
+    group = 'build'
+    description = 'Check iOS build requirements'
+    doFirst {
+        if (!isBuildMac) {
+            throw new GradleException("iOS builds require BUILD_PLATFORM=macOS")
+        }
+    }
+    doLast {
+        mkdir('build/ios/obj')
+    }
+}
+
+task buildIOSCompileMain(type: Exec) {
+    group = 'build'
+    description = 'Compile main.cpp for iOS'
+    dependsOn buildIOSCheck
+    commandLine 'bash', '-c', '''
+        SDK=$(xcrun --sdk iphoneos --show-sdk-path)
+        xcrun -sdk iphoneos clang++ -c -arch arm64 -isysroot "$SDK" \
+            -mios-version-min=14.0 -std=c++11 \
+            -DBUILD_TOOL='"Gradle"' -DPLATFORM_IOS \
+            -Iinclude -Iext/SDL2-install/include \
+            -o build/ios/obj/main.o src/main.cpp
+    '''
+}
+
+task buildIOSCompileApp(type: Exec) {
+    group = 'build'
+    description = 'Compile App.cpp for iOS'
+    dependsOn buildIOSCheck
+    commandLine 'bash', '-c', '''
+        SDK=$(xcrun --sdk iphoneos --show-sdk-path)
+        xcrun -sdk iphoneos clang++ -c -arch arm64 -isysroot "$SDK" \
+            -mios-version-min=14.0 -std=c++11 \
+            -DBUILD_TOOL='"Gradle"' -DPLATFORM_IOS \
+            -Iinclude -Iext/SDL2-install/include \
+            -o build/ios/obj/App.o src/App.cpp
+    '''
+}
+
+task buildIOSCompileGuiManager(type: Exec) {
+    group = 'build'
+    description = 'Compile GuiManager.cpp for iOS'
+    dependsOn buildIOSCheck
+    commandLine 'bash', '-c', '''
+        SDK=$(xcrun --sdk iphoneos --show-sdk-path)
+        xcrun -sdk iphoneos clang++ -c -arch arm64 -isysroot "$SDK" \
+            -mios-version-min=14.0 -std=c++11 \
+            -DBUILD_TOOL='"Gradle"' -DPLATFORM_IOS \
+            -Iinclude -Iext/SDL2-install/include \
+            -o build/ios/obj/GuiManager.o src/GuiManager.cpp
+    '''
+}
+
+task buildIOSCompile {
+    group = 'build'
+    description = 'Compile all iOS source files'
+    dependsOn buildIOSCompileMain, buildIOSCompileApp, buildIOSCompileGuiManager
+    doLast {
+        println "✓ Compiled iOS objects"
+    }
+}
+
+task buildIOSLink(type: Exec) {
+    group = 'build'
+    description = 'Link iOS executable'
+    dependsOn buildIOSCompile
+    commandLine 'bash', '-c', '''
+        SDK=$(xcrun --sdk iphoneos --show-sdk-path)
+        xcrun -sdk iphoneos clang++ -arch arm64 -isysroot "$SDK" \
+            -o build/ios/MultiPlatformGUI \
+            build/ios/obj/main.o build/ios/obj/App.o build/ios/obj/GuiManager.o \
+            -Lext/SDL2-install/lib -lSDL2main -lSDL2 -liconv \
+            -framework Foundation -framework UIKit -framework CoreGraphics \
+            -framework CoreVideo -framework CoreAudio -framework AudioToolbox \
+            -framework AVFoundation -framework Metal -framework QuartzCore \
+            -framework OpenGLES -framework GameController -framework CoreMotion \
+            -framework CoreBluetooth -framework CoreHaptics
+    '''
+}
+
+task buildIOS {
+    group = 'build'
+    description = 'Build for iOS (requires Xcode on macOS)'
+    dependsOn buildIOSLink
+    doLast {
+        println "✓ Built for TARGET_PLATFORM=iOS"
+        println "  Executable: build/ios/MultiPlatformGUI"
+    }
+}
+
 task buildAndroidAssemble(type: Exec) {
     group = 'build'
     description = 'Assemble Android APK'
@@ -202,7 +308,12 @@ task printConfig {
         println "==================================="
         println ""
         println "Available tasks:"
+        println "  gradle buildSDL2MacOS   - Build SDL2 for macOS"
+        println "  gradle buildSDL2iOS     - Build SDL2 for iOS"
         println "  gradle buildSDL2Android - Build SDL2 for Android"
+        println "  gradle buildSDL2MinGW   - Build SDL2 for Windows"
+        println ""
+        println "  gradle buildIOS         - Build for iOS (requires Xcode)"
         println "  gradle buildAndroid     - Build Android APK"
         println ""
     }
