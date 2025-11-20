@@ -188,68 +188,28 @@ task buildSDL2MinGW(type: Exec) {
 // Platform-specific build tasks
 //
 
-task buildIOSCheck {
+task buildIOSCompile(type: Exec) {
     group = 'build'
-    description = 'Check iOS build requirements'
+    description = 'Compile all iOS source files'
     doFirst {
         if (!isBuildMac) {
             throw new GradleException("iOS builds require BUILD_PLATFORM=macOS")
         }
-    }
-    doLast {
         mkdir('build/ios/obj')
     }
-}
-
-task buildIOSCompileMain(type: Exec) {
-    group = 'build'
-    description = 'Compile main.cpp for iOS'
-    dependsOn buildIOSCheck
     commandLine 'bash', '-c', '''
         SDK=$(xcrun --sdk iphoneos --show-sdk-path)
-        xcrun -sdk iphoneos clang++ -c -arch arm64 -isysroot "$SDK" \
-            -mios-version-min=14.0 -std=c++11 \
-            -DBUILD_TOOL='"Gradle"' -DPLATFORM_IOS \
-            -Iinclude -Iext/SDL2-install/include \
-            -o build/ios/obj/main.o src/main.cpp
+        for src in src/*.cpp; do
+            obj="build/ios/obj/$(basename "$src" .cpp).o"
+            echo "Compiling $src -> $obj"
+            xcrun -sdk iphoneos clang++ -c -arch arm64 -isysroot "$SDK" \
+                -mios-version-min=14.0 -std=c++11 \
+                -DBUILD_TOOL='"Gradle"' -DPLATFORM_IOS \
+                -Iinclude -Iext/SDL2-install/include \
+                -o "$obj" "$src"
+        done
+        echo "✓ Compiled iOS objects"
     '''
-}
-
-task buildIOSCompileApp(type: Exec) {
-    group = 'build'
-    description = 'Compile App.cpp for iOS'
-    dependsOn buildIOSCheck
-    commandLine 'bash', '-c', '''
-        SDK=$(xcrun --sdk iphoneos --show-sdk-path)
-        xcrun -sdk iphoneos clang++ -c -arch arm64 -isysroot "$SDK" \
-            -mios-version-min=14.0 -std=c++11 \
-            -DBUILD_TOOL='"Gradle"' -DPLATFORM_IOS \
-            -Iinclude -Iext/SDL2-install/include \
-            -o build/ios/obj/App.o src/App.cpp
-    '''
-}
-
-task buildIOSCompileGuiManager(type: Exec) {
-    group = 'build'
-    description = 'Compile GuiManager.cpp for iOS'
-    dependsOn buildIOSCheck
-    commandLine 'bash', '-c', '''
-        SDK=$(xcrun --sdk iphoneos --show-sdk-path)
-        xcrun -sdk iphoneos clang++ -c -arch arm64 -isysroot "$SDK" \
-            -mios-version-min=14.0 -std=c++11 \
-            -DBUILD_TOOL='"Gradle"' -DPLATFORM_IOS \
-            -Iinclude -Iext/SDL2-install/include \
-            -o build/ios/obj/GuiManager.o src/GuiManager.cpp
-    '''
-}
-
-task buildIOSCompile {
-    group = 'build'
-    description = 'Compile all iOS source files'
-    dependsOn buildIOSCompileMain, buildIOSCompileApp, buildIOSCompileGuiManager
-    doLast {
-        println "✓ Compiled iOS objects"
-    }
 }
 
 task buildIOSLink(type: Exec) {
@@ -280,71 +240,29 @@ task buildIOS {
     }
 }
 
-task buildIOSSimCheck {
+task buildIOSSimCompile(type: Exec) {
     group = 'build'
-    description = 'Check iOS Simulator build requirements'
+    description = 'Compile all iOS Simulator source files'
     doFirst {
         if (!isBuildMac) {
             throw new GradleException("iOS Simulator builds require BUILD_PLATFORM=macOS")
         }
-    }
-    doLast {
         mkdir('build/ios-simulator/obj')
     }
-}
-
-task buildIOSSimCompileMain(type: Exec) {
-    group = 'build'
-    description = 'Compile main.cpp for iOS Simulator'
-    dependsOn buildIOSSimCheck
     commandLine 'bash', '-c', '''
         SDK=$(xcrun --sdk iphonesimulator --show-sdk-path)
         ARCH=$(uname -m)
-        xcrun -sdk iphonesimulator clang++ -c -arch $ARCH -isysroot "$SDK" \
-            -mios-simulator-version-min=14.0 -std=c++11 \
-            -DBUILD_TOOL='"Gradle"' -DPLATFORM_IOS \
-            -Iinclude -Iext/SDL2-install/include \
-            -o build/ios-simulator/obj/main.o src/main.cpp
+        for src in src/*.cpp; do
+            obj="build/ios-simulator/obj/$(basename "$src" .cpp).o"
+            echo "Compiling $src -> $obj"
+            xcrun -sdk iphonesimulator clang++ -c -arch $ARCH -isysroot "$SDK" \
+                -mios-simulator-version-min=14.0 -std=c++11 \
+                -DBUILD_TOOL='"Gradle"' -DPLATFORM_IOS \
+                -Iinclude -Iext/SDL2-install/include \
+                -o "$obj" "$src"
+        done
+        echo "✓ Compiled iOS Simulator objects"
     '''
-}
-
-task buildIOSSimCompileApp(type: Exec) {
-    group = 'build'
-    description = 'Compile App.cpp for iOS Simulator'
-    dependsOn buildIOSSimCheck
-    commandLine 'bash', '-c', '''
-        SDK=$(xcrun --sdk iphonesimulator --show-sdk-path)
-        ARCH=$(uname -m)
-        xcrun -sdk iphonesimulator clang++ -c -arch $ARCH -isysroot "$SDK" \
-            -mios-simulator-version-min=14.0 -std=c++11 \
-            -DBUILD_TOOL='"Gradle"' -DPLATFORM_IOS \
-            -Iinclude -Iext/SDL2-install/include \
-            -o build/ios-simulator/obj/App.o src/App.cpp
-    '''
-}
-
-task buildIOSSimCompileGuiManager(type: Exec) {
-    group = 'build'
-    description = 'Compile GuiManager.cpp for iOS Simulator'
-    dependsOn buildIOSSimCheck
-    commandLine 'bash', '-c', '''
-        SDK=$(xcrun --sdk iphonesimulator --show-sdk-path)
-        ARCH=$(uname -m)
-        xcrun -sdk iphonesimulator clang++ -c -arch $ARCH -isysroot "$SDK" \
-            -mios-simulator-version-min=14.0 -std=c++11 \
-            -DBUILD_TOOL='"Gradle"' -DPLATFORM_IOS \
-            -Iinclude -Iext/SDL2-install/include \
-            -o build/ios-simulator/obj/GuiManager.o src/GuiManager.cpp
-    '''
-}
-
-task buildIOSSimCompile {
-    group = 'build'
-    description = 'Compile all iOS Simulator source files'
-    dependsOn buildIOSSimCompileMain, buildIOSSimCompileApp, buildIOSSimCompileGuiManager
-    doLast {
-        println "✓ Compiled iOS Simulator objects"
-    }
 }
 
 task buildIOSSimLink(type: Exec) {
