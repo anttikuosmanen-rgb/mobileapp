@@ -66,6 +66,12 @@ void App::handleEvents() {
                 isRunning = false;
                 break;
 
+            case SDL_WINDOWEVENT:
+                if (event.window.event == SDL_WINDOWEVENT_CLOSE) {
+                    isRunning = false;
+                }
+                break;
+
             case SDL_MOUSEBUTTONDOWN:
                 if (event.button.button == SDL_BUTTON_LEFT) {
                     guiManager->handleClick(event.button.x, event.button.y);

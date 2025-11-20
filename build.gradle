@@ -71,10 +71,47 @@ task buildSDL2iOSInstall(type: Exec) {
 
 task buildSDL2iOS {
     group = 'sdl2'
-    description = 'Build SDL2 for iOS'
+    description = 'Build SDL2 for iOS device'
     dependsOn buildSDL2iOSInstall
     doLast {
-        println "✓ SDL2 built for iOS → ext/SDL2-install"
+        println "✓ SDL2 built for iOS device → ext/SDL2-install"
+    }
+}
+
+task buildSDL2iOSSimConfigure(type: Exec) {
+    group = 'sdl2'
+    description = 'Configure SDL2 for iOS Simulator'
+    workingDir file('ext/SDL2')
+    commandLine 'cmake', '-S', '.', '-B', 'build-ios-simulator',
+               '-DCMAKE_TOOLCHAIN_FILE=../../cmake/toolchains/ios.cmake',
+               '-DIOS_SIMULATOR=ON',
+               '-DCMAKE_BUILD_TYPE=Release',
+               '-DCMAKE_INSTALL_PREFIX=../SDL2-install',
+               '-DSDL_STATIC=ON', '-DSDL_SHARED=OFF'
+}
+
+task buildSDL2iOSSimCompile(type: Exec) {
+    group = 'sdl2'
+    description = 'Compile SDL2 for iOS Simulator'
+    workingDir file('ext/SDL2')
+    commandLine 'cmake', '--build', 'build-ios-simulator', '--config', 'Release'
+    dependsOn buildSDL2iOSSimConfigure
+}
+
+task buildSDL2iOSSimInstall(type: Exec) {
+    group = 'sdl2'
+    description = 'Install SDL2 for iOS Simulator'
+    workingDir file('ext/SDL2')
+    commandLine 'cmake', '--install', 'build-ios-simulator'
+    dependsOn buildSDL2iOSSimCompile
+}
+
+task buildSDL2iOSSim {
+    group = 'sdl2'
+    description = 'Build SDL2 for iOS Simulator'
+    dependsOn buildSDL2iOSSimInstall
+    doLast {
+        println "✓ SDL2 built for iOS Simulator → ext/SDL2-install"
     }
 }
 
@@ -235,11 +272,107 @@ task buildIOSLink(type: Exec) {
 
 task buildIOS {
     group = 'build'
-    description = 'Build for iOS (requires Xcode on macOS)'
+    description = 'Build for iOS device (requires Xcode on macOS)'
     dependsOn buildIOSLink
     doLast {
-        println "✓ Built for TARGET_PLATFORM=iOS"
+        println "✓ Built for TARGET_PLATFORM=iOS (device)"
         println "  Executable: build/ios/MultiPlatformGUI"
+    }
+}
+
+task buildIOSSimCheck {
+    group = 'build'
+    description = 'Check iOS Simulator build requirements'
+    doFirst {
+        if (!isBuildMac) {
+            throw new GradleException("iOS Simulator builds require BUILD_PLATFORM=macOS")
+        }
+    }
+    doLast {
+        mkdir('build/ios-simulator/obj')
+    }
+}
+
+task buildIOSSimCompileMain(type: Exec) {
+    group = 'build'
+    description = 'Compile main.cpp for iOS Simulator'
+    dependsOn buildIOSSimCheck
+    commandLine 'bash', '-c', '''
+        SDK=$(xcrun --sdk iphonesimulator --show-sdk-path)
+        ARCH=$(uname -m)
+        xcrun -sdk iphonesimulator clang++ -c -arch $ARCH -isysroot "$SDK" \
+            -mios-simulator-version-min=14.0 -std=c++11 \
+            -DBUILD_TOOL='"Gradle"' -DPLATFORM_IOS \
+            -Iinclude -Iext/SDL2-install/include \
+            -o build/ios-simulator/obj/main.o src/main.cpp
+    '''
+}
+
+task buildIOSSimCompileApp(type: Exec) {
+    group = 'build'
+    description = 'Compile App.cpp for iOS Simulator'
+    dependsOn buildIOSSimCheck
+    commandLine 'bash', '-c', '''
+        SDK=$(xcrun --sdk iphonesimulator --show-sdk-path)
+        ARCH=$(uname -m)
+        xcrun -sdk iphonesimulator clang++ -c -arch $ARCH -isysroot "$SDK" \
+            -mios-simulator-version-min=14.0 -std=c++11 \
+            -DBUILD_TOOL='"Gradle"' -DPLATFORM_IOS \
+            -Iinclude -Iext/SDL2-install/include \
+            -o build/ios-simulator/obj/App.o src/App.cpp
+    '''
+}
+
+task buildIOSSimCompileGuiManager(type: Exec) {
+    group = 'build'
+    description = 'Compile GuiManager.cpp for iOS Simulator'
+    dependsOn buildIOSSimCheck
+    commandLine 'bash', '-c', '''
+        SDK=$(xcrun --sdk iphonesimulator --show-sdk-path)
+        ARCH=$(uname -m)
+        xcrun -sdk iphonesimulator clang++ -c -arch $ARCH -isysroot "$SDK" \
+            -mios-simulator-version-min=14.0 -std=c++11 \
+            -DBUILD_TOOL='"Gradle"' -DPLATFORM_IOS \
+            -Iinclude -Iext/SDL2-install/include \
+            -o build/ios-simulator/obj/GuiManager.o src/GuiManager.cpp
+    '''
+}
+
+task buildIOSSimCompile {
+    group = 'build'
+    description = 'Compile all iOS Simulator source files'
+    dependsOn buildIOSSimCompileMain, buildIOSSimCompileApp, buildIOSSimCompileGuiManager
+    doLast {
+        println "✓ Compiled iOS Simulator objects"
+    }
+}
+
+task buildIOSSimLink(type: Exec) {
+    group = 'build'
+    description = 'Link iOS Simulator executable'
+    dependsOn buildIOSSimCompile
+    commandLine 'bash', '-c', '''
+        SDK=$(xcrun --sdk iphonesimulator --show-sdk-path)
+        ARCH=$(uname -m)
+        xcrun -sdk iphonesimulator clang++ -arch $ARCH -isysroot "$SDK" \
+            -o build/ios-simulator/MultiPlatformGUI \
+            build/ios-simulator/obj/main.o build/ios-simulator/obj/App.o build/ios-simulator/obj/GuiManager.o \
+            -Lext/SDL2-install/lib -lSDL2main -lSDL2 -liconv \
+            -framework Foundation -framework UIKit -framework CoreGraphics \
+            -framework CoreVideo -framework CoreAudio -framework AudioToolbox \
+            -framework AVFoundation -framework Metal -framework QuartzCore \
+            -framework OpenGLES -framework GameController -framework CoreMotion \
+            -framework CoreBluetooth -framework CoreHaptics
+    '''
+}
+
+task buildIOSSim {
+    group = 'build'
+    description = 'Build for iOS Simulator (requires Xcode on macOS)'
+    dependsOn buildIOSSimLink
+    doLast {
+        println "✓ Built for TARGET_PLATFORM=iOS (simulator)"
+        println "  Executable: build/ios-simulator/MultiPlatformGUI"
     }
 }
 
@@ -309,11 +442,13 @@ task printConfig {
         println ""
         println "Available tasks:"
         println "  gradle buildSDL2MacOS   - Build SDL2 for macOS"
-        println "  gradle buildSDL2iOS     - Build SDL2 for iOS"
+        println "  gradle buildSDL2iOS     - Build SDL2 for iOS device"
+        println "  gradle buildSDL2iOSSim  - Build SDL2 for iOS Simulator"
         println "  gradle buildSDL2Android - Build SDL2 for Android"
         println "  gradle buildSDL2MinGW   - Build SDL2 for Windows"
         println ""
-        println "  gradle buildIOS         - Build for iOS (requires Xcode)"
+        println "  gradle buildIOS         - Build for iOS device (requires Xcode)"
+        println "  gradle buildIOSSim      - Build for iOS Simulator (requires Xcode)"
         println "  gradle buildAndroid     - Build Android APK"
         println ""
     }

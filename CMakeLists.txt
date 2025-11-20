@@ -90,6 +90,18 @@ if(NOT CMAKE_TOOLCHAIN_FILE)
         COMMENT "Built SDL2 for iOS → ${SDL2_PREBUILT_DIR}"
     )
 
+    add_custom_target(build-sdl2-ios-simulator
+        COMMAND ${CMAKE_COMMAND} -S ${SDL2_SOURCE_DIR} -B ${SDL2_SOURCE_DIR}/build-ios-simulator
+                -DCMAKE_TOOLCHAIN_FILE=${CMAKE_SOURCE_DIR}/cmake/toolchains/ios.cmake
+                -DIOS_SIMULATOR=ON
+                -DCMAKE_BUILD_TYPE=Release
+                -DCMAKE_INSTALL_PREFIX=${SDL2_PREBUILT_DIR}
+                -DSDL_STATIC=ON -DSDL_SHARED=OFF
+        COMMAND ${CMAKE_COMMAND} --build ${SDL2_SOURCE_DIR}/build-ios-simulator --config Release
+        COMMAND ${CMAKE_COMMAND} --install ${SDL2_SOURCE_DIR}/build-ios-simulator
+        COMMENT "Built SDL2 for iOS Simulator → ${SDL2_PREBUILT_DIR}"
+    )
+
     add_custom_target(build-sdl2-android
         COMMAND ${CMAKE_COMMAND} -S ${SDL2_SOURCE_DIR} -B ${SDL2_SOURCE_DIR}/build-android
                 -DCMAKE_TOOLCHAIN_FILE=${CMAKE_SOURCE_DIR}/cmake/toolchains/android.cmake
@@ -198,6 +210,18 @@ endif()
 # Create executable
 add_executable(${PROJECT_NAME} ${SOURCES})
 
+# iOS app bundle configuration
+if(TARGET_PLATFORM STREQUAL "iOS")
+    set_target_properties(${PROJECT_NAME} PROPERTIES
+        MACOSX_BUNDLE TRUE
+        MACOSX_BUNDLE_GUI_IDENTIFIER "com.multiplatform.gui"
+        MACOSX_BUNDLE_BUNDLE_NAME "MultiPlatformGUI"
+        MACOSX_BUNDLE_BUNDLE_VERSION "${PROJECT_VERSION}"
+        MACOSX_BUNDLE_SHORT_VERSION_STRING "${PROJECT_VERSION}"
+        MACOSX_BUNDLE_INFO_PLIST "${CMAKE_SOURCE_DIR}/cmake/ios/Info.plist.in"
+    )
+endif()
+
 # Link SDL2 libraries
 if(SDL2_LIBRARIES)
     if(SDL2_LIBRARIES MATCHES "^-L")
@@ -273,14 +297,26 @@ if(NOT CMAKE_TOOLCHAIN_FILE)
     )
 
     add_custom_target(ios
-        COMMAND ${CMAKE_COMMAND} -E echo "Building for TARGET_PLATFORM=iOS on BUILD_PLATFORM=${BUILD_PLATFORM}..."
+        COMMAND ${CMAKE_COMMAND} -E echo "Building for TARGET_PLATFORM=iOS device on BUILD_PLATFORM=${BUILD_PLATFORM}..."
         COMMAND xcrun --version
         COMMAND ${CMAKE_COMMAND}
             -S ${CMAKE_SOURCE_DIR}
             -B ${CMAKE_BINARY_DIR}/ios
             -DCMAKE_TOOLCHAIN_FILE=${CMAKE_SOURCE_DIR}/cmake/toolchains/ios.cmake
         COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR}/ios
-        COMMENT "Cross-compiling for iOS"
+        COMMENT "Cross-compiling for iOS device"
+    )
+
+    add_custom_target(ios-simulator
+        COMMAND ${CMAKE_COMMAND} -E echo "Building for TARGET_PLATFORM=iOS Simulator on BUILD_PLATFORM=${BUILD_PLATFORM}..."
+        COMMAND xcrun --version
+        COMMAND ${CMAKE_COMMAND}
+            -S ${CMAKE_SOURCE_DIR}
+            -B ${CMAKE_BINARY_DIR}/ios-simulator
+            -DCMAKE_TOOLCHAIN_FILE=${CMAKE_SOURCE_DIR}/cmake/toolchains/ios.cmake
+            -DIOS_SIMULATOR=ON
+        COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR}/ios-simulator
+        COMMENT "Cross-compiling for iOS Simulator"
     )
 
     add_custom_target(android
@@ -313,10 +349,11 @@ if(NOT CMAKE_TOOLCHAIN_FILE)
         COMMAND ${CMAKE_COMMAND} -E echo "BUILD_PLATFORM (host): ${BUILD_PLATFORM}"
         COMMAND ${CMAKE_COMMAND} -E echo ""
         COMMAND ${CMAKE_COMMAND} -E echo "Available TARGET_PLATFORM builds:"
-        COMMAND ${CMAKE_COMMAND} -E echo "  make macos    - Build for macOS"
-        COMMAND ${CMAKE_COMMAND} -E echo "  make ios      - Build for iOS (requires Xcode)"
-        COMMAND ${CMAKE_COMMAND} -E echo "  make android  - Build for Android (requires NDK)"
-        COMMAND ${CMAKE_COMMAND} -E echo "  make windows  - Build for Windows (requires MinGW)"
+        COMMAND ${CMAKE_COMMAND} -E echo "  make macos         - Build for macOS"
+        COMMAND ${CMAKE_COMMAND} -E echo "  make ios           - Build for iOS device (requires Xcode)"
+        COMMAND ${CMAKE_COMMAND} -E echo "  make ios-simulator - Build for iOS Simulator (requires Xcode)"
+        COMMAND ${CMAKE_COMMAND} -E echo "  make android       - Build for Android (requires NDK)"
+        COMMAND ${CMAKE_COMMAND} -E echo "  make windows       - Build for Windows (requires MinGW)"
         COMMAND ${CMAKE_COMMAND} -E echo ""
         COMMENT "Display available platform targets"
     )
@@ -336,7 +373,7 @@ message(STATUS "  Toolchain File: ${CMAKE_TOOLCHAIN_FILE}")
 message(STATUS "=================================")
 message(STATUS "")
 if(NOT CMAKE_TOOLCHAIN_FILE)
-    message(STATUS "Available targets: macos, ios, android, windows")
+    message(STATUS "Available targets: macos, ios, ios-simulator, android, windows")
     message(STATUS "Run: cmake --build build --target <platform>")
     message(STATUS "")
 endif()

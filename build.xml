@@ -92,8 +92,8 @@
         <echo message="✓ SDL2 built for macOS → ext/SDL2-install"/>
     </target>
 
-    <target name="build-sdl2-ios" description="Build SDL2 for iOS">
-        <echo message="Building SDL2 for iOS..."/>
+    <target name="build-sdl2-ios" description="Build SDL2 for iOS device">
+        <echo message="Building SDL2 for iOS device..."/>
         <exec executable="cmake" dir="ext/SDL2" failonerror="true">
             <arg value="-S"/>
             <arg value="."/>
@@ -115,7 +115,34 @@
             <arg value="--install"/>
             <arg value="build-ios"/>
         </exec>
-        <echo message="✓ SDL2 built for iOS → ext/SDL2-install"/>
+        <echo message="✓ SDL2 built for iOS device → ext/SDL2-install"/>
+    </target>
+
+    <target name="build-sdl2-ios-simulator" description="Build SDL2 for iOS Simulator">
+        <echo message="Building SDL2 for iOS Simulator..."/>
+        <exec executable="cmake" dir="ext/SDL2" failonerror="true">
+            <arg value="-S"/>
+            <arg value="."/>
+            <arg value="-B"/>
+            <arg value="build-ios-simulator"/>
+            <arg value="-DCMAKE_TOOLCHAIN_FILE=../../cmake/toolchains/ios.cmake"/>
+            <arg value="-DIOS_SIMULATOR=ON"/>
+            <arg value="-DCMAKE_BUILD_TYPE=Release"/>
+            <arg value="-DCMAKE_INSTALL_PREFIX=../SDL2-install"/>
+            <arg value="-DSDL_STATIC=ON"/>
+            <arg value="-DSDL_SHARED=OFF"/>
+        </exec>
+        <exec executable="cmake" dir="ext/SDL2" failonerror="true">
+            <arg value="--build"/>
+            <arg value="build-ios-simulator"/>
+            <arg value="--config"/>
+            <arg value="Release"/>
+        </exec>
+        <exec executable="cmake" dir="ext/SDL2" failonerror="true">
+            <arg value="--install"/>
+            <arg value="build-ios-simulator"/>
+        </exec>
+        <echo message="✓ SDL2 built for iOS Simulator → ext/SDL2-install"/>
     </target>
 
     <target name="build-sdl2-android" description="Build SDL2 for Android (arm64-v8a)">
@@ -324,7 +351,106 @@
             <arg value="-framework"/>
             <arg value="CoreHaptics"/>
         </exec>
-        <echo message="✓ Built for TARGET_PLATFORM=iOS (BUILD_PLATFORM=${BUILD_PLATFORM})"/>
+        <echo message="✓ Built for TARGET_PLATFORM=iOS device (BUILD_PLATFORM=${BUILD_PLATFORM})"/>
+        <echo message="  Executable: ${build.dir}/MultiPlatformGUI"/>
+    </target>
+
+    <!--
+        iOS Simulator TARGET_PLATFORM
+    -->
+    <target name="compile-ios-simulator-target" depends="init,check-ios-requirements" description="Compile for TARGET_PLATFORM=iOS Simulator">
+        <echo message="Compiling for TARGET_PLATFORM=iOS Simulator (BUILD_PLATFORM=${BUILD_PLATFORM})..."/>
+
+        <!-- Get iOS Simulator SDK path -->
+        <exec executable="xcrun" outputproperty="ios.sim.sdk.path">
+            <arg value="--sdk"/>
+            <arg value="iphonesimulator"/>
+            <arg value="--show-sdk-path"/>
+        </exec>
+
+        <!-- Get host architecture -->
+        <exec executable="uname" outputproperty="host.arch">
+            <arg value="-m"/>
+        </exec>
+
+        <apply executable="xcrun" dest="${build.dir}/obj" parallel="false" failonerror="true">
+            <arg value="clang++"/>
+            <arg value="-c"/>
+            <arg value="-std=c++11"/>
+            <arg value="-arch"/>
+            <arg value="${host.arch}"/>
+            <arg value="-isysroot"/>
+            <arg value="${ios.sim.sdk.path}"/>
+            <arg value="-mios-simulator-version-min=14.0"/>
+            <arg value="-DBUILD_TOOL=&quot;Ant&quot;"/>
+            <arg value="-DPLATFORM_IOS"/>
+            <arg value="-I${include.dir}"/>
+            <arg value="-Iext/SDL2-install/include"/>
+            <srcfile/>
+            <arg value="-o"/>
+            <targetfile/>
+            <fileset dir="${src.dir}" includes="*.cpp"/>
+            <mapper type="glob" from="*.cpp" to="*.o"/>
+        </apply>
+    </target>
+
+    <target name="link-ios-simulator-target" depends="compile-ios-simulator-target" description="Link for TARGET_PLATFORM=iOS Simulator">
+        <echo message="Linking for TARGET_PLATFORM=iOS Simulator..."/>
+        <exec executable="xcrun" outputproperty="ios.sim.sdk.path2">
+            <arg value="--sdk"/>
+            <arg value="iphonesimulator"/>
+            <arg value="--show-sdk-path"/>
+        </exec>
+
+        <exec executable="uname" outputproperty="host.arch2">
+            <arg value="-m"/>
+        </exec>
+
+        <exec executable="xcrun" failonerror="true">
+            <arg value="clang++"/>
+            <arg value="-arch"/>
+            <arg value="${host.arch2}"/>
+            <arg value="-isysroot"/>
+            <arg value="${ios.sim.sdk.path2}"/>
+            <arg value="-o"/>
+            <arg value="${build.dir}/MultiPlatformGUI"/>
+            <arg value="${build.dir}/obj/App.o"/>
+            <arg value="${build.dir}/obj/GuiManager.o"/>
+            <arg value="${build.dir}/obj/main.o"/>
+            <arg value="-Lext/SDL2-install/lib"/>
+            <arg value="-lSDL2main"/>
+            <arg value="-lSDL2"/>
+            <arg value="-liconv"/>
+            <arg value="-framework"/>
+            <arg value="Foundation"/>
+            <arg value="-framework"/>
+            <arg value="UIKit"/>
+            <arg value="-framework"/>
+            <arg value="CoreGraphics"/>
+            <arg value="-framework"/>
+            <arg value="CoreVideo"/>
+            <arg value="-framework"/>
+            <arg value="CoreAudio"/>
+            <arg value="-framework"/>
+            <arg value="AudioToolbox"/>
+            <arg value="-framework"/>
+            <arg value="AVFoundation"/>
+            <arg value="-framework"/>
+            <arg value="Metal"/>
+            <arg value="-framework"/>
+            <arg value="QuartzCore"/>
+            <arg value="-framework"/>
+            <arg value="OpenGLES"/>
+            <arg value="-framework"/>
+            <arg value="GameController"/>
+            <arg value="-framework"/>
+            <arg value="CoreMotion"/>
+            <arg value="-framework"/>
+            <arg value="CoreBluetooth"/>
+            <arg value="-framework"/>
+            <arg value="CoreHaptics"/>
+        </exec>
+        <echo message="✓ Built for TARGET_PLATFORM=iOS Simulator (BUILD_PLATFORM=${BUILD_PLATFORM})"/>
         <echo message="  Executable: ${build.dir}/MultiPlatformGUI"/>
     </target>
 
@@ -475,7 +601,9 @@
     -->
     <target name="build-macOS" depends="link-macos-target" description="Build for TARGET_PLATFORM=macOS"/>
 
-    <target name="build-iOS" depends="link-ios-target" description="Build for TARGET_PLATFORM=iOS (requires Xcode on macOS)"/>
+    <target name="build-iOS" depends="link-ios-target" description="Build for TARGET_PLATFORM=iOS device (requires Xcode on macOS)"/>
+
+    <target name="build-iOS-Simulator" depends="link-ios-simulator-target" description="Build for TARGET_PLATFORM=iOS Simulator (requires Xcode on macOS)"/>
 
     <target name="build-Android" depends="build-android-target" description="Build for TARGET_PLATFORM=Android (requires NDK)"/>
 
@@ -511,11 +639,12 @@
         <echo message="BUILD_PLATFORM (host): ${BUILD_PLATFORM}"/>
         <echo message=""/>
         <echo message="Available TARGET_PLATFORM builds:"/>
-        <echo message="  ant build-macOS    - Build for macOS"/>
-        <echo message="  ant build-iOS      - Build for iOS (requires Xcode on macOS)"/>
-        <echo message="  ant build-Android  - Build for Android (requires NDK)"/>
-        <echo message="  ant build-Windows  - Build for Windows"/>
-        <echo message="  ant build-Linux    - Build for Linux"/>
+        <echo message="  ant build-macOS          - Build for macOS"/>
+        <echo message="  ant build-iOS            - Build for iOS device (requires Xcode)"/>
+        <echo message="  ant build-iOS-Simulator  - Build for iOS Simulator (requires Xcode)"/>
+        <echo message="  ant build-Android        - Build for Android (requires NDK)"/>
+        <echo message="  ant build-Windows        - Build for Windows"/>
+        <echo message="  ant build-Linux          - Build for Linux"/>
         <echo message=""/>
         <echo message="Other targets:"/>
         <echo message="  ant clean          - Clean build directory"/>

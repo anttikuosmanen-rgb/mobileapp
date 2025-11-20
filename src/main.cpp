@@ -23,5 +23,9 @@ int main(int argc, char* argv[]) {
     app.cleanup();
 
     std::cout << "Application exited successfully" << std::endl;
+
+#ifdef PLATFORM_IOS
+    exit(0);
+#endif
     return 0;
 }
